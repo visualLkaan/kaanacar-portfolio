@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ffprobe -v error -show_format -show_streams \"/c/Users/HESAP/Desktop/kaan-acar-portfolio/references/0001-0240.mp4\")",
+      "Bash(python3 -c \"import cv2; print\\('cv2 ok'\\)\")",
+      "Bash(python -c \"import cv2; print\\('cv2 ok'\\)\")",
+      "PowerShell(Get-Command *)",
+      "PowerShell(winget install *)",
+      "Bash(node -e ' *)",
+      "Skill(run)",
+      "Bash(find .claude -iname \"SKILL.md\")",
+      "Bash(which node *)",
+      "Bash(which chromium-cli *)",
+      "Bash(chromium-cli --help)",
+      "Bash(npm ls *)",
+      "Bash(node -e \"require.resolve\\('playwright'\\)\")",
+      "Bash(npx --no-install playwright --version)",
+      "Read(//tmp/**)",
+      "Bash(curl -sf http://localhost:8080/)",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(node verify.js)",
+      "Bash(node verify5.js)",
+      "Bash(pkill -f \"http-server\")",
+      "Bash(node \"C:\\\\Users\\\\HESAP\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-HESAP-Desktop-kaan-acar-portfolio\\\\263b1460-addd-4ded-aff7-4453f5bfbecb\\\\scratchpad\\\\probe3.js\")",
+      "Bash(pkill -f \"8811\")",
+      "Bash(mkdir -p assets/projects/linka)",
+      "Bash(cp \"references/main page.jpg\" assets/projects/linka/cover.jpg)",
+      "Bash(cp \"references/enter 1st.jpg\" assets/projects/linka/plate-01.jpg)",
+      "Bash(cp \"references/enter 2st.jpg\" assets/projects/linka/plate-02.jpg)",
+      "Bash(cp \"references/enter 3st.jpg\" assets/projects/linka/plate-03.jpg)",
+      "Bash(sed -i 's|SCRATCHDIR|C:/Users/HESAP/AppData/Local/Temp/claude/C--Users-HESAP-Desktop-kaan-acar-portfolio/263b1460-addd-4ded-aff7-4453f5bfbecb/scratchpad|g' 'C:\\\\Users\\\\HESAP\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-HESAP-Desktop-kaan-acar-portfolio\\\\263b1460-addd-4ded-aff7-4453f5bfbecb\\\\scratchpad/verify_stack4.js')",
+      "Bash(node 'C:\\\\Users\\\\HESAP\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-HESAP-Desktop-kaan-acar-portfolio\\\\263b1460-addd-4ded-aff7-4453f5bfbecb\\\\scratchpad/verify_stack4.js')",
+      "Bash(grep -n \"^/\\\\* ----\\\\|^\\\\.work\\\\|#work-grid\\\\|\\\\.card\\\\b\\\\|\\\\.card-\\\\|#project-view\\\\|\\\\.exhibit\\\\|\\\\.sequence\\\\|\\\\.project-view\" css/style.css)",
+      "Bash(python3 -c ' *)"
+    ]
+  }
+}

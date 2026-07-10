@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kaan Acar — Visual Communication Designer</title>
+<meta name="description" content="Portfolio of Kaan Acar, Visual Communication Designer.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- One continuous animated canvas behind the entire page -- fixed, never re-created per section -->
+<div id="ambient-bg" aria-hidden="true">
+  <div class="ambient-blob ambient-blob-1" data-depth="0.6"></div>
+  <div class="ambient-blob ambient-blob-2" data-depth="1"></div>
+  <div class="ambient-blob ambient-blob-3" data-depth="1.3"></div>
+  <div class="ambient-blob ambient-blob-4" data-depth="1.6"></div>
+</div>
+
+<!-- Film grain overlay, sits above everything, ambient texture -->
+<svg class="grain" aria-hidden="true">
+  <filter id="grain-filter">
+    <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"></feTurbulence>
+    <feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.04 0"></feColorMatrix>
+  </filter>
+  <rect width="100%" height="100%" filter="url(#grain-filter)"></rect>
+</svg>
+
+<div id="loader" aria-hidden="true">
+  <canvas id="loader-canvas"></canvas>
+  <div id="loader-type" aria-hidden="true">
+    <div class="loader-type-line loader-type-line--lead">WELCOME</div>
+    <div class="loader-type-line loader-type-line--sub">to my</div>
+    <div class="loader-type-line loader-type-line--lead">PORTFOLIO</div>
+  </div>
+</div>
+
+<div class="frame-bar frame-top" id="frame-top">
+  <span>VISUAL COMMUNICATION DESIGNER</span>
+  <span>PORTFOLIO — 2026</span>
+</div>
+<div class="frame-bar frame-bottom" id="frame-bottom">
+  <span>ISTANBUL, TR</span>
+  <span id="scroll-pct">SCROLL 00%</span>
+</div>
+
+<header id="site-header">
+  <a class="logo" href="#top">KA</a>
+  <nav>
+    <ul>
+      <li><a href="#work">Work</a></li>
+      <li><a href="#about">About</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ul>
+  </nav>
+</header>
+
+<section id="hero">
+  <div class="hero-name-wrap" id="hero-name-wrap">
+    <h1 class="hero-name">
+      <span class="row" data-row="1">KAAN</span>
+      <span class="row" data-row="2">ACAR</span>
+    </h1>
+  </div>
+
+  <div class="hero-sub reveal">
+    <p class="hero-role">Visual Communication Designer</p>
+    <p class="hero-line">I turn ideas into things people feel before they read a word of them.</p>
+  </div>
+
+  <div class="scroll-cue">
+    <span class="dash"></span> Scroll
+  </div>
+</section>
+
+<section id="work">
+  <div class="section-head reveal">
+    <span class="num">01</span>
+    <h2>Selected Work</h2>
+    <div class="rule"></div>
+  </div>
+
+  <!-- The homepage 3D carousel (project covers only) is generated from the PROJECTS data
+       object in js/script.js -- add a project there and it appears here with no HTML changes. -->
+  <div id="work-carousel"></div>
+</section>
+
+<!-- Project page (level 2: ordered image gallery or video page, level 3: enlarge any image) --
+     opened via a cinematic transition when a carousel card is clicked. Entirely generated from
+     PROJECTS in js/script.js; this is just the empty shell. -->
+<div id="project-page" role="dialog" aria-modal="true" aria-hidden="true">
+  <button class="project-page__close" id="project-page-close" aria-label="Close project">✕</button>
+  <div class="project-page__inner" id="project-page-inner"></div>
+</div>
+
+<section id="about">
+  <div class="section-head reveal">
+    <span class="num">02</span>
+    <h2>About</h2>
+    <div class="rule"></div>
+  </div>
+  <div class="about-grid">
+    <div class="portrait reveal" data-tone="6">
+      <span>PORTRAIT<br>PLACEHOLDER</span>
+    </div>
+    <div class="about-copy reveal">
+      <p>I'm Kaan Acar — a visual communication design student who treats every brief as <em>a small argument</em> about clarity, rhythm and restraint.</p>
+      <p>My process moves between sketchbook and screen, print and motion, always circling back to one question: what does this need to say, and how simply can it say it?</p>
+      <div class="skills">
+        <strong>Tools</strong> — Figma, Adobe Suite, After Effects, Webflow<br>
+        <strong>Focus</strong> — Branding / Editorial Design / Motion / UI<br>
+        <strong>Based in</strong> — Istanbul, TR · Open to internships
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="contact">
+  <div class="section-head reveal">
+    <span class="num">03</span>
+    <h2>Let's talk</h2>
+    <div class="rule"></div>
+  </div>
+  <div class="contact-main reveal">
+    <a class="contact-email" href="mailto:hello@kaanacar.com">hello@kaanacar.com</a>
+    <div class="contact-links">
+      <a href="#">Instagram</a>
+      <a href="#">Behance</a>
+      <a href="#">LinkedIn</a>
+      <a href="#">Resume (PDF)</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span>© 2026 Kaan Acar — All rights reserved</span>
+  <button id="back-to-top">Back to top ↑</button>
+</footer>
+
+<!-- self-hosted, no CDN -- used by the loader's crowd-canvas only, same vendoring convention as assets/vendor/pdfjs -->
+<script src="assets/vendor/gsap/gsap.min.js"></script>
+<script src="js/script.js"></script>
+</body>
+</html>

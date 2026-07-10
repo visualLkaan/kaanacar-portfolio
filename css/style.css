@@ -1,0 +1,615 @@
+:root{
+  --paper:#F5F5F1;
+  --paper-dim:#EAEAE3;
+  --ink:#101014;
+  --muted:rgba(245,245,241,0.55);
+  --line:rgba(245,245,241,0.16);
+  --accent:#2B4EFF;
+  --accent-2:#FF5A3C;
+  --accent-dim:#DDE2FF;
+  --violet:#5B4FE0;
+
+  --hero-indigo:#2E1E63;
+  --hero-warm:#8F8478;
+  --hero-rose:#6B4A52;
+
+  --accent-tint:#7C93FF;
+  --accent-2-tint:#FF9478;
+  --violet-tint:#9B90F2;
+
+  --display: 'Fraunces', serif;
+  --poster: 'Bebas Neue', sans-serif;
+  --body: 'Inter', sans-serif;
+  --mono: 'IBM Plex Mono', monospace;
+
+  --edge: clamp(20px, 5vw, 64px);
+  --frame-h: 44px;
+  --mx: 50%;
+  --my: 50%;
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+html{ scroll-behavior:smooth; }
+body{
+  background:var(--ink);
+  color:var(--paper);
+  font-family:var(--body);
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+::selection{ background:var(--accent); color:var(--paper); }
+a{ color:inherit; text-decoration:none; }
+
+a:focus-visible, button:focus-visible, .carousel-card:focus-visible, .gallery-item:focus-visible{
+  outline:2px solid var(--accent);
+  outline-offset:4px;
+}
+
+/* ---------- AMBIENT BACKGROUND ---------- */
+/* One fixed canvas behind the entire page -- never recreated per section, so the scene never
+   restarts or seams as you scroll. Color and motion are procedural (gradients + blur + transform),
+   not an image, in the spirit of references/background.png rather than a literal copy of it. */
+#ambient-bg{
+  position:fixed; inset:0;
+  z-index:-1;
+  background:var(--ink);
+  overflow:hidden;
+}
+.ambient-blob{
+  position:absolute;
+  border-radius:50%;
+  filter:blur(95px);
+  pointer-events:none;
+  will-change:transform;
+}
+.ambient-blob-1{
+  width:56vw; height:56vw; max-width:680px; max-height:680px;
+  top:-10%; left:-10%;
+  background:radial-gradient(circle, var(--hero-indigo) 0%, transparent 70%);
+  opacity:0.85;
+}
+.ambient-blob-2{
+  width:50vw; height:50vw; max-width:620px; max-height:620px;
+  top:35%; right:-12%;
+  background:radial-gradient(circle, var(--hero-warm) 0%, transparent 70%);
+  opacity:0.5;
+}
+.ambient-blob-3{
+  width:42vw; height:42vw; max-width:520px; max-height:520px;
+  bottom:-8%; left:8%;
+  background:radial-gradient(circle, var(--hero-rose) 0%, transparent 70%);
+  opacity:0.42;
+}
+.ambient-blob-4{
+  width:30vw; height:30vw; max-width:380px; max-height:380px;
+  bottom:14%; right:18%;
+  background:radial-gradient(circle, var(--accent) 0%, transparent 70%);
+  opacity:0.4;
+}
+
+/* ---------- FILM GRAIN ---------- */
+.grain{
+  position:fixed; inset:0; width:100%; height:100%;
+  z-index:900; pointer-events:none;
+  mix-blend-mode:overlay;
+  opacity:0.6;
+}
+
+/* ---------- LETTERBOX FRAME ---------- */
+.frame-bar{
+  position:fixed; left:0; right:0; height:var(--frame-h);
+  background:var(--ink); z-index:80;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 var(--edge);
+  font-family:var(--mono); font-size:0.68rem; letter-spacing:0.08em;
+  color:rgba(245,245,241,0.65); text-transform:uppercase;
+  transform:translateY(0);
+  transition:transform 0.7s cubic-bezier(.76,0,.24,1), opacity 0.6s ease;
+}
+.frame-top{ top:0; }
+.frame-bottom{ bottom:0; }
+.frame-bar.away.frame-top{ transform:translateY(-100%); }
+.frame-bar.away.frame-bottom{ transform:translateY(100%); }
+
+/* ---------- LOADER ---------- */
+/* structure mirrors the source CrowdCanvas component: a full-viewport stage with the canvas
+   pinned to the bottom 90% of it (top 10% left empty), matching the original's own
+   `absolute bottom-0 h-[90vh] w-full` -- the crowd walks along a "ground" band, not edge-to-edge
+   top-to-bottom of the whole screen */
+#loader{
+  position:fixed; inset:0; z-index:999;
+  background:var(--ink);
+  overflow:hidden;
+}
+#loader-canvas{
+  position:absolute; left:0; right:0; bottom:0;
+  width:100%; height:90vh;
+}
+/* independent typography layer, above the crowd -- shares no positioning/coordinate math with
+   the canvas at all, just a plain centered stack of lines. Its own entrance/exit is driven by a
+   GSAP timeline (playTypeEntrance()/playReveal() in js/script.js), which splits each line into
+   per-character `.loader-char` spans at runtime for the staggered per-letter motion. */
+#loader-type{
+  position:absolute; inset:0; z-index:2;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:0.06em;
+  pointer-events:none;
+  opacity:0; /* invisible (including the raw static text) until playTypeEntrance() reveals it the
+    instant the per-character animation is about to run -- never a static line sitting on screen
+    before motion starts */
+  /* static composition shift -- pulls the whole stack up off dead-center so there's less empty
+     space above it; a plain CSS offset on the container, entirely separate from the per-character
+     entrance transforms GSAP drives on the .loader-char spans, and from the reveal timeline's own
+     scale tween on this same element (GSAP reads/composes on top of this via getComputedStyle) */
+  transform:translateY(-9vh);
+}
+.loader-type-line{
+  font-family:var(--poster);
+  color:var(--paper);
+  line-height:1;
+  white-space:nowrap; /* the larger scale below is sized to approach the viewport edges --
+    without this, a narrower viewport could wrap a word onto two lines instead of just running
+    close to the edges (#loader has overflow:hidden, so any excess clips cleanly, never scrolls) */
+}
+/* WELCOME / PORTFOLIO -- the two dominant words. Sized up from the previous pass toward the
+   bolder, tighter-to-the-crowd composition in loader/reference.png -- but not pushed all the way
+   to that reference's own proportions (~85% of frame width): this site's crowd occupies far more
+   vertical space than the reference's crowd band (its heads commonly reach ~50-53% up this
+   viewport, vs. the reference's ~19%-tall band), so matching the reference literally would either
+   crush the top margin to nothing or bury PORTFOLIO in crowd heads. This is the largest size that
+   still clears the crowd cleanly at typical viewport widths, with only the same kind of incidental
+   graze from an occasional tall peep that the reference itself has. Same min/preferred/max ratio
+   to the sub-line as always -- only the scale changed, not the hierarchy. */
+.loader-type-line--lead{
+  font-size:clamp(3.7rem, 15vw, 11.25rem);
+  letter-spacing:0.01em;
+}
+/* "to my" -- deliberately much smaller and lighter than the lead words, per the requested
+   hierarchy, set apart with breathing room above/below */
+.loader-type-line--sub{
+  font-size:clamp(1.21rem, 3.25vw, 2.19rem);
+  letter-spacing:0.24em;
+  opacity:0.5;
+  margin:0.3em 0;
+}
+.loader-char{
+  display:inline-block;
+  will-change:transform, opacity, filter;
+}
+/* the reveal itself (camera push-in, type + crowd fade, background dissolve) is driven entirely
+   by a GSAP timeline in playReveal() (js/script.js) so it can run concurrently with the
+   hero/header's own CSS opacity fades as one continuous cross-dissolve -- no CSS keyframe here */
+
+/* ---------- NAV ---------- */
+header{
+  position:fixed; top:var(--frame-h); left:0; right:0; z-index:50;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:20px var(--edge);
+  opacity:0; transform:translateY(-8px);
+  transition:opacity 0.6s ease, transform 0.6s ease, top 0.7s cubic-bezier(.76,0,.24,1);
+}
+header.show{ opacity:1; transform:translateY(0); }
+header.frame-away{ top:0; }
+.logo{
+  font-family:var(--mono); font-size:0.85rem; font-weight:500; letter-spacing:0.04em;
+  border:1px solid var(--paper); border-radius:50%;
+  width:38px; height:38px;
+  display:flex; align-items:center; justify-content:center;
+}
+nav ul{
+  list-style:none; display:flex; gap:32px;
+  font-family:var(--mono); font-size:0.78rem; letter-spacing:0.05em; text-transform:uppercase;
+}
+nav a{ position:relative; padding-bottom:3px; }
+nav a::after{
+  content:''; position:absolute; left:0; bottom:0; width:0; height:1px;
+  background:var(--paper); transition:width 0.3s ease;
+}
+nav a:hover::after{ width:100%; }
+
+/* ---------- HERO ---------- */
+#hero{
+  min-height:100svh;
+  display:flex; flex-direction:column; justify-content:center; align-items:center;
+  padding:calc(var(--frame-h) + 40px) var(--edge) 80px;
+  position:relative;
+  text-align:center;
+  opacity:0;
+  transition:opacity 0.8s ease;
+}
+#hero.show{ opacity:1; }
+
+.hero-name-wrap{ width:100%; position:relative; z-index:1; }
+.hero-name{
+  font-family:var(--poster);
+  line-height:0.82;
+  letter-spacing:0.005em;
+  font-size:clamp(4rem, 18vw, 15rem);
+}
+.hero-name .row{
+  display:block;
+  overflow:hidden;
+  background-image: radial-gradient(
+      circle at var(--mx) var(--my),
+      var(--accent-2) 0%,
+      var(--accent) 32%,
+      var(--paper) 68%
+    );
+  background-size:180% 180%;
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  -webkit-text-fill-color:transparent;
+  transition:background-size 0.4s ease;
+}
+.hero-name .row span,
+.hero-name .row{
+  will-change:transform;
+}
+
+.hero-sub{
+  margin-top:36px;
+  display:flex; flex-direction:column; align-items:center; gap:10px;
+  position:relative; z-index:1;
+}
+.hero-role{
+  font-family:var(--mono); font-size:0.78rem; letter-spacing:0.1em;
+  text-transform:uppercase; color:rgba(245,245,241,0.55);
+}
+.hero-line{
+  font-family:var(--display); font-style:italic; font-weight:300;
+  font-size:clamp(1.1rem, 2vw, 1.5rem);
+  color:var(--paper);
+  max-width:560px;
+}
+
+.scroll-cue{
+  position:absolute; bottom:28px; left:50%; transform:translateX(-50%);
+  font-family:var(--mono); font-size:0.7rem; letter-spacing:0.08em;
+  text-transform:uppercase; color:rgba(245,245,241,0.55);
+  display:flex; align-items:center; gap:10px;
+  z-index:1;
+}
+.scroll-cue .dash{
+  width:22px; height:1px; background:rgba(245,245,241,0.55);
+  animation:pulse-dash 1.8s ease-in-out infinite;
+}
+@keyframes pulse-dash{ 0%,100%{ width:22px; } 50%{ width:8px; } }
+
+/* ---------- SECTION LABELS ---------- */
+.section-head{
+  display:flex; align-items:baseline; gap:18px;
+  padding:0 var(--edge);
+  margin-bottom:46px;
+}
+.section-head .num{ font-family:var(--mono); font-size:0.8rem; color:var(--accent); }
+.section-head h2{ font-family:var(--display); font-weight:400; font-size:clamp(1.6rem, 3.2vw, 2.4rem); }
+.section-head .rule{ flex:1; height:1px; background:var(--line); }
+
+section{ padding:130px 0 60px; }
+
+.reveal{ opacity:0; transform:translateY(24px); transition:opacity 0.8s ease, transform 0.8s ease; }
+.reveal.in{ opacity:1; transform:translateY(0); }
+
+/* ---------- WORK CAROUSEL (homepage level -- project covers only) ---------- */
+/* #work-carousel and everything inside it are generated entirely from PROJECTS in
+   js/script.js -- tones are set as inline --tone-a/--tone-b custom properties per card, so no
+   CSS edits are ever needed to add a project. This ring only ever shows the 8 project covers;
+   clicking one triggers a cinematic transition into #project-page (see below), it does not
+   change what this ring displays. */
+#work-carousel{
+  position:relative;
+  padding:0 var(--edge) 40px;
+  display:flex; flex-direction:column; align-items:center;
+}
+
+/* ---- work background: a fixed full-viewport wash + drifting particle field, visible only
+   while the Work section is on screen (toggled by JS via IntersectionObserver). The wash
+   crossfades to the active project's own tone-palette colors using native @property color
+   interpolation -- the browser blends old->new hue continuously, so the previous project's
+   color is still visibly present partway through, never a hard cut. ---- */
+@property --wash-a{ syntax:'<color>'; inherits:true; initial-value:#14141a; }
+@property --wash-b{ syntax:'<color>'; inherits:true; initial-value:#14141a; }
+
+.work-bg{
+  position:fixed; inset:0; z-index:0;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .8s ease;
+}
+.work-bg.in-view{ opacity:1; }
+
+.work-bg__wash{
+  position:absolute; inset:-15%;
+  background:
+    radial-gradient(ellipse 60% 55% at 28% 32%, var(--wash-a) 0%, transparent 62%),
+    radial-gradient(ellipse 60% 55% at 76% 68%, var(--wash-b) 0%, transparent 62%);
+  filter:blur(120px);
+  opacity:0.6;
+  transition:--wash-a 1.5s cubic-bezier(0,0,.3,1), --wash-b 1.5s cubic-bezier(0,0,.3,1);
+}
+
+.work-bg__particles{ position:absolute; inset:0; overflow:hidden; }
+.work-particle{ position:absolute; will-change:transform, opacity; }
+.work-particle__shape{ display:block; width:100%; height:100%; }
+.work-particle--dot .work-particle__shape{ border-radius:50%; background:rgba(245,245,241,0.6); }
+.work-particle--ring .work-particle__shape{ border-radius:50%; border:1px solid rgba(245,245,241,0.38); }
+.work-particle--diamond .work-particle__shape{ background:rgba(245,245,241,0.42); border-radius:2px; transform:rotate(45deg); }
+
+.carousel-viewport{
+  position:relative; z-index:1;
+  width:100%;
+  height:min(76vh, 780px);
+  perspective:1600px;
+  touch-action:pan-y;
+  cursor:grab;
+  transform:rotateX(var(--tiltX, 0deg)) rotateY(var(--tiltY, 0deg));
+  transition:transform .4s cubic-bezier(.22,1,.36,1);
+}
+.carousel-viewport.dragging{ cursor:grabbing; transform:rotateX(var(--tiltX, 0deg)) rotateY(var(--tiltY, 0deg)) scale(0.985); }
+
+/* project number/title/category/year, bottom-left of the stage -- updates whenever the active
+   card changes, tracking rotation live (drag/wheel/keys/autoplay alike), not just on click.
+   The gradient background is load-bearing, not decorative: cards vary from near-black photos
+   to pale placeholder gradients, so the text needs guaranteed contrast against either. */
+.carousel-info{
+  position:absolute; left:0; right:0; bottom:0; z-index:2;
+  max-width:min(46vw, 460px);
+  padding:170px 70px 28px 28px;
+  background:radial-gradient(ellipse 100% 110% at 0% 100%, rgba(8,8,10,0.8) 0%, rgba(8,8,10,0.5) 40%, transparent 72%);
+  pointer-events:none;
+}
+.carousel-info__num{ font-family:var(--mono); font-size:0.78rem; color:var(--accent); letter-spacing:0.04em; }
+.carousel-info__title{ font-family:var(--display); font-weight:400; font-size:clamp(1.4rem, 3.2vw, 2.4rem); color:var(--paper); margin:8px 0 6px; }
+.carousel-info__meta{ font-family:var(--mono); font-size:0.72rem; color:var(--muted); letter-spacing:0.03em; text-transform:uppercase; display:flex; gap:14px; }
+
+.carousel-ring{
+  position:absolute; inset:0;
+  transform-style:preserve-3d;
+  outline:none;
+}
+
+.carousel-card{
+  position:absolute; top:50%; left:50%;
+  border-radius:4px;
+  cursor:pointer;
+}
+
+.carousel-card__inner{
+  position:relative; width:100%; height:100%;
+  border-radius:inherit;
+  overflow:hidden;
+  background:var(--paper-dim);
+  box-shadow:0 40px 90px -30px rgba(0,0,0,0.75);
+  transition:box-shadow .3s ease, filter .3s ease;
+  will-change:transform, opacity;
+}
+.carousel-card__inner::before{
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(150deg, var(--tone-a, #EAEAE3), var(--tone-b, #D8D8D0));
+}
+.carousel-card.is-active .carousel-card__inner{ box-shadow:0 55px 120px -30px rgba(0,0,0,0.85); }
+.carousel-card__inner.is-hovered{ filter:saturate(1.3) brightness(1.05); box-shadow:0 55px 120px -30px rgba(0,0,0,0.85); }
+
+.carousel-card__cover{
+  position:absolute; inset:0; z-index:1;
+  width:100%; height:100%;
+  object-fit:contain;
+}
+
+.carousel-card__preview{
+  position:absolute; inset:0; z-index:1;
+  width:100%; height:100%;
+  object-fit:cover;
+}
+
+.carousel-card__play{
+  position:absolute; inset:0; z-index:2;
+  display:flex; align-items:center; justify-content:center;
+}
+.carousel-card__play span{
+  width:56px; height:56px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(16,16,20,0.35);
+  border:1px solid rgba(245,245,241,0.5);
+  color:var(--paper);
+  font-size:0.9rem;
+  backdrop-filter:blur(4px);
+}
+
+.carousel-hint{
+  margin-top:22px; position:relative; z-index:1;
+  font-family:var(--mono); font-size:0.68rem; letter-spacing:0.06em; text-transform:uppercase;
+  color:var(--muted);
+  transition:opacity .5s ease;
+}
+.carousel-hint.hide{ opacity:0; }
+
+@media (max-width:760px){
+  #work-carousel{ padding:0 var(--edge) 24px; }
+  .carousel-viewport{ height:min(62vh, 560px); }
+  .carousel-info{ left:16px; bottom:16px; max-width:74vw; }
+  .carousel-info__title{ font-size:clamp(1.2rem, 6vw, 1.8rem); }
+}
+
+/* ---------- PROJECT PAGE (level 2: ordered gallery/video page, level 3: enlarged image) ---------- */
+/* #project-page is a full-viewport overlay, entered via a cinematic clone-and-grow transition
+   from a clicked carousel card (js/script.js). It is a genuinely separate view from the
+   homepage carousel above -- not another ring, not the same rotation mechanic -- matching a
+   "homepage vs. case-study page" structure. Entirely generated from PROJECTS; tones use the
+   same inline --tone-a/--tone-b convention as everywhere else on the site. */
+#project-page{
+  position:fixed; inset:0;
+  z-index:500;
+  background:var(--ink);
+  opacity:0; visibility:hidden;
+  transition:opacity 0.5s ease, visibility 0s linear 0.5s;
+}
+#project-page.open{ opacity:1; visibility:visible; transition:opacity 0.5s ease; }
+
+.project-page__close{
+  position:fixed; top:24px; right:24px; z-index:40;
+  width:44px; height:44px; border-radius:50%;
+  border:1px solid rgba(245,245,241,0.3);
+  background:rgba(16,16,20,0.5);
+  color:var(--paper);
+  font-family:var(--mono); font-size:0.95rem;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:border-color .3s ease, transform .3s ease;
+}
+.project-page__close:hover{ border-color:var(--paper); transform:scale(1.08); }
+
+.project-page__inner{ position:absolute; inset:0; overflow:hidden; }
+
+.project-page__head{
+  position:absolute; top:0; left:0; right:0; z-index:10;
+  padding:calc(var(--frame-h) + 36px) var(--edge) 70px;
+  background:linear-gradient(var(--ink) 0%, rgba(16,16,20,0.75) 55%, transparent 100%);
+  pointer-events:none;
+}
+.project-page__head .num{ font-family:var(--mono); font-size:0.78rem; color:var(--accent); }
+.project-page__head h2{ font-family:var(--display); font-weight:400; font-size:clamp(1.8rem, 4vw, 3rem); margin:10px 0 8px; }
+.project-page__head .meta{ font-family:var(--mono); font-size:0.75rem; color:var(--muted); letter-spacing:0.04em; text-transform:uppercase; }
+
+/* ordered horizontal gallery: exactly the case study's own images, in source order -- drag or
+   wheel to browse, click any image to enlarge it (level 3), Escape/scrim-click to return */
+.gallery-track{
+  position:absolute; inset:0;
+  overflow-x:auto; overflow-y:hidden;
+  scrollbar-width:none;
+  display:flex; align-items:center;
+  gap:36px;
+  padding:calc(var(--frame-h) + 200px) calc(var(--edge) * 2) 90px;
+  cursor:grab;
+}
+.gallery-track::-webkit-scrollbar{ display:none; }
+.gallery-track.dragging{ cursor:grabbing; user-select:none; }
+.gallery-item{
+  position:relative; flex:0 0 auto;
+  height:min(60vh, 540px);
+  border-radius:3px;
+  overflow:hidden;
+  cursor:zoom-in;
+  background:var(--paper-dim);
+  box-shadow:0 30px 70px -25px rgba(0,0,0,0.7);
+  transition:top .55s cubic-bezier(.22,1,.36,1), left .55s cubic-bezier(.22,1,.36,1),
+             width .55s cubic-bezier(.22,1,.36,1), height .55s cubic-bezier(.22,1,.36,1),
+             box-shadow .3s ease, transform .4s cubic-bezier(.16,1,.3,1);
+}
+.gallery-item::before{ content:''; position:absolute; inset:0; background:linear-gradient(150deg, var(--tone-a, #EAEAE3), var(--tone-b, #D8D8D0)); }
+.gallery-item img{ position:relative; z-index:1; display:block; height:100%; width:auto; }
+.gallery-item.enlarged img{ width:100%; height:100%; object-fit:contain; }
+.gallery-item:hover{ transform:translateY(-8px); box-shadow:0 40px 90px -25px rgba(0,0,0,0.8); }
+.gallery-item.enlarged{ z-index:30; cursor:zoom-out; box-shadow:0 50px 100px -30px rgba(0,0,0,0.8); }
+.gallery-item.enlarged:hover{ transform:none; }
+.gallery-item .gallery-label{
+  position:absolute; left:10px; bottom:10px; z-index:2;
+  font-family:var(--mono); font-size:0.62rem; letter-spacing:0.05em;
+  color:rgba(245,245,241,0.9);
+  background:rgba(16,16,20,0.45);
+  padding:3px 9px; border-radius:20px;
+}
+
+@media (max-width:760px){
+  .gallery-track{ padding:calc(var(--frame-h) + 160px) var(--edge) 70px; gap:20px; }
+  .gallery-item{ height:min(48vh, 420px); }
+}
+
+.gallery-scrim{
+  position:fixed; inset:0; z-index:25;
+  background:rgba(8,8,10,0.72);
+  backdrop-filter:blur(8px);
+  opacity:0; pointer-events:none;
+  transition:opacity .35s ease;
+}
+.gallery-scrim.show{ opacity:1; pointer-events:auto; }
+
+/* brief state while a PDF-backed project's pages are rendering live in the browser */
+.gallery-loading{
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--mono); font-size:0.75rem; letter-spacing:0.04em; text-transform:uppercase;
+  color:var(--muted);
+}
+
+/* ---- video projects: clean cinematic page (still level 2, just no filmstrip) ---- */
+.project-page--video .project-page__inner{ overflow-y:auto; }
+.project-page-video-content{
+  padding:calc(var(--frame-h) + 140px) var(--edge) 100px;
+  max-width:1100px; margin:0 auto;
+}
+.project-video{
+  width:100%; aspect-ratio:16/9; border-radius:4px; overflow:hidden;
+  position:relative; background:var(--paper-dim);
+}
+.project-video video{ width:100%; height:100%; object-fit:cover; display:block; }
+.project-video__placeholder{
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--mono); font-size:0.75rem; letter-spacing:0.04em; text-transform:uppercase;
+  color:rgba(16,16,20,0.4);
+  background:linear-gradient(150deg, var(--tone-a), var(--tone-b));
+}
+
+.supporting-grid{
+  margin-top:60px;
+  display:grid; grid-template-columns:repeat(3, 1fr); gap:20px;
+}
+.supporting-item{
+  aspect-ratio:4/5; border-radius:3px; position:relative; overflow:hidden;
+  background:var(--paper-dim);
+}
+.supporting-item::before{ content:''; position:absolute; inset:0; background:linear-gradient(150deg, var(--tone-a), var(--tone-b)); }
+
+@media (max-width:760px){
+  .supporting-grid{ grid-template-columns:1fr 1fr; }
+}
+
+/* ---------- ABOUT ---------- */
+#about .about-grid{ padding:0 var(--edge); display:grid; grid-template-columns:0.8fr 1.2fr; gap:60px; align-items:start; }
+.portrait{
+  aspect-ratio:3/4;
+  background:linear-gradient(160deg, #ECEAE5, #D9CFC2);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--mono); font-size:0.7rem; color:rgba(16,16,20,0.4); text-align:center; padding:20px;
+}
+.about-copy p{ font-family:var(--display); font-weight:300; font-size:clamp(1.3rem, 2.4vw, 1.9rem); line-height:1.4; margin-bottom:34px; }
+.about-copy p em{ font-style:italic; color:var(--accent); }
+.skills{ font-family:var(--mono); font-size:0.82rem; letter-spacing:0.02em; color:var(--muted); line-height:2; }
+.skills strong{ color:var(--paper); font-weight:500; }
+
+/* ---------- CONTACT ---------- */
+#contact{ padding:90px var(--edge); }
+.contact-main{ display:flex; flex-direction:column; gap:26px; }
+.contact-email{
+  font-family:var(--display); font-weight:300;
+  font-size:clamp(1.8rem, 6vw, 4rem);
+  border-bottom:1px solid rgba(245,245,241,0.25);
+  padding-bottom:20px; display:inline-block;
+  transition:color 0.3s ease;
+}
+.contact-email:hover{ color:var(--accent); }
+.contact-links{ display:flex; gap:30px; flex-wrap:wrap; font-family:var(--mono); font-size:0.78rem; letter-spacing:0.04em; text-transform:uppercase; color:rgba(245,245,241,0.7); }
+.contact-links a:hover{ color:var(--paper); }
+
+footer{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:34px var(--edge) 40px;
+  font-family:var(--mono); font-size:0.7rem; color:var(--muted); letter-spacing:0.03em;
+}
+footer button{ background:none; border:none; color:var(--muted); font-family:var(--mono); font-size:0.7rem; cursor:pointer; letter-spacing:0.03em; }
+footer button:hover{ color:var(--paper); }
+
+@media (max-width:760px){
+  #about .about-grid{ grid-template-columns:1fr; }
+  #contact{ padding:60px 20px; }
+  .frame-bar span:last-child{ display:none; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation:none !important; transition:none !important; }
+  .reveal{ opacity:1; transform:none; }
+  #loader{ display:none; }
+  .grain{ display:none; }
+}
