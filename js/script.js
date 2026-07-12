@@ -38,39 +38,28 @@ var PROJECTS = [
       'assets/projects/white-noise/bookcover-mockup.jpg'
     ] },
   { id: 'kanye-west',   title: 'KANYE WEST',              category: 'Editorial Design',  year: '2026', size: 'md', type: 'image',
-    pdf: 'assets/projects/kanye-west/kanye-west.pdf',
-    wash: ['#8B1220', '#FF5252'] }, // deep crimson / dark red -- matches the cover's own red-black gradient
+    pdf: 'assets/projects/kanye-west/kanye-west.pdf' },
   { id: 'breaking-the-grid', title: 'BREAKING THE GRID',  category: 'Swiss Style',       year: '2026', size: 'md', type: 'image',
-    pdf: 'assets/projects/breaking-the-grid/breaking-the-grid.pdf',
-    wash: ['#E0A800', '#00C0F0'] }, // golden yellow / cyan -- matches the cover's yellow field and cyan wave + "WEST" wordmark
+    pdf: 'assets/projects/breaking-the-grid/breaking-the-grid.pdf' },
   { id: 'didot-specimen', title: 'DIDOT TYPE SPECIMEN',  category: 'Typography',        year: '2026', size: 'md', type: 'image',
     pdf: 'assets/projects/didot-specimen/didot-specimen.pdf',
     pdfPagesInGallery: false, // cover still renders from PDF page 1 as normal; the PDF's other
     // pages (a case-study deck, not gallery plates) are excluded -- gallery is extraImages only
     extraImages: [
       'assets/projects/didot-specimen/didot-type-specimen.jpg'
-    ],
-    wash: ['#7B2D8E', '#E020A0'] }, // deep violet / magenta -- matches the cover's purple gradient and pink "SPECIMEN" wordmark
+    ] },
   // `videoPreview` opts a video project into a hover-to-play carousel preview (a muted, looping
   // <video> in place of the static cover -- see buildProjectCard()/the card hover handlers below)
   // instead of the default tone-gradient-plus-play-icon card every other video project uses.
   { id: 'reach',         title: 'REACH',                   category: 'Animation / Music Video', year: '2026', size: 'md', type: 'video',
     videoPreview: 'assets/projects/reach/reach-preview.mp4',
-    video: 'assets/projects/reach/reach-full.mp4',
-    wash: ['#1C1A16', '#F0EAD8'] }, // ink black / warm parchment -- the preview itself is a pure
-    // black-ink-on-white-paper line-art animatic (sampled: ~97% of every frame is off-white
-    // paper, the rest near-black ink, no hue anywhere), so this wash mirrors that literally
-    // rather than inventing a color the preview never shows
+    video: 'assets/projects/reach/reach-full.mp4' },
   { id: 'fight-club-titles', title: 'FIGHT CLUB — Title Sequence', category: 'Motion / Title Design', year: '2026', size: 'md', type: 'video',
     // same single file for both -- `videoPreview` and `video` don't have to differ, the preview
     // mechanism only ever plays/loops/resets it silently in the card, independent of the full,
     // controls-enabled playback `buildVideo()` renders once the project is actually opened
     videoPreview: 'assets/projects/fight-club-titles/fight-club-titles.mp4',
-    video: 'assets/projects/fight-club-titles/fight-club-titles.mp4',
-    wash: ['#4A0A0A', '#F00000'] }, // deep blood red / vivid red -- sampled across the video's
-    // frames: black dominates by area as expected, but by far the strongest non-neutral color
-    // in every sampled frame was a near-pure red (~rgb(240,0,0)), matching the sequence's actual
-    // brick-red/black title-card palette (BRAD PITT brick wall, red grunge transitions)
+    video: 'assets/projects/fight-club-titles/fight-club-titles.mp4' },
   { id: 'unknown-place', title: 'UNKNOWN PLACE',   category: 'Book Cover',        year: '2026', size: 'md', type: 'image',
     pdf: 'assets/projects/unknown-place/unknown-place.pdf', // cover only (1 page) -- no gallery
     pdfPagesInGallery: false, // plates of its own; the gallery comes entirely from autoImages below
@@ -78,10 +67,7 @@ var PROJECTS = [
     // browser (see loadAutoImageSequence() above) so dropping more `photoN` files into this
     // project's folder later adds them to the gallery in filename order with zero code changes
     autoImages: { dir: 'assets/projects/unknown-place/', prefix: 'photo', start: 1,
-      extensions: ['jpeg', 'jpg', 'png', 'webp'] },
-    wash: ['#0EA355', '#FF6A2E'] } // deep emerald / vivid orange -- sampled from the cover's
-    // rendered pixels: a saturated green field dominates by area (~rgb(0,200,100)), with a
-    // warm orange-red glow (~rgb(200,80,20)) blended behind the title text as the clear accent
+      extensions: ['jpeg', 'jpg', 'png', 'webp'] } }
 ];
 
 // deterministic gradient palette -- every tone used anywhere (cards, gallery plates, supporting
@@ -97,11 +83,12 @@ function applyTone(el, i) {
   el.style.setProperty('--tone-b', t[1]);
 }
 
-// deterministic wash palette for the Work carousel's background -- same hue family and index
-// correspondence as TONE_PALETTE above (so a project's background mood is thematically tied to
-// its own card gradient) but pushed far more saturated/vivid: TONE_PALETTE's pastels are barely
-// distinguishable from each other at a glance (by design, for light card-gradient backgrounds),
-// which made an early version of the background wash nearly invisible between projects.
+// fallback-only wash palette for the Work carousel's background: the real palette for every
+// project is now extracted live from its own cover/PDF-page/video-frame (see
+// extractPaletteFromSource()/getProjectPalette() above) and fed into updateWash() below. This
+// cyclic array only ever gets used if that extraction genuinely fails for a given project (e.g.
+// an undecodable source) -- degradation, not the primary mechanism -- so it's kept saturated and
+// visually distinct by index the same way it always was.
 var WASH_PALETTE = [
   ['#3B4FD6', '#7C93FF'], ['#C4522E', '#FF7A4D'], ['#2E7D4F', '#4CAF7D'], ['#B8842A', '#FFC24C'],
   ['#5B4FE0', '#9B90F2'], ['#8A5A34', '#D9925C'], ['#7C3FD6', '#C77DFF'], ['#1F8A7A', '#4FD6C0'],
@@ -232,6 +219,145 @@ function screenItemsFor(project) {
     for (var j = 0; j < (project.images || 0); j++) list.push({ kind: 'placeholder', tone: j + 3 });
   }
   return list;
+}
+
+// ---- Project palette extraction: the single source of truth for "what color is this project."
+// Analyzes each project's own main image (cover / rendered PDF page 1 / video preview's first
+// frame) live in the browser -- a downscaled canvas + quantized-histogram dominant-color sample,
+// picking the two most distinct prominent clusters (or, for a near-monochrome source, deriving a
+// second tone from the first via an HSL lightness shift, the same "darker/lighter pair" shape
+// WASH_PALETTE below already uses). Nothing here is hand-picked per project; nothing samples an
+// image twice (results are cached per project id, since a cover never changes after first look).
+// Both the Work background wash (updateWash(), further down) and the Liquid Ether layer
+// (setSiteColors()) are driven from this one pipeline so they can never drift apart. ----
+function loadImageEl(src) {
+  return new Promise(function (resolve, reject) {
+    var img = new Image();
+    img.onload = function () { resolve(img); };
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+function loadVideoFrameEl(src) {
+  return new Promise(function (resolve, reject) {
+    var vid = document.createElement('video');
+    vid.muted = true;
+    vid.playsInline = true;
+    vid.preload = 'auto';
+    vid.addEventListener('error', reject, { once: true });
+    vid.addEventListener('loadeddata', function onLoaded() {
+      vid.removeEventListener('loadeddata', onLoaded);
+      vid.addEventListener('seeked', function () { resolve(vid); }, { once: true });
+      // a hair past frame 0 -- some encodes leave the literal first frame black
+      vid.currentTime = Math.min(0.2, (vid.duration || 1) / 2);
+    });
+    vid.src = src;
+  });
+}
+function getProjectMainImageEl(project) {
+  if (project.cover) return loadImageEl(project.cover);
+  if (project.pdf) return renderPdfPageToUrl(project, 1, 1).then(loadImageEl);
+  if (project.videoPreview || project.video) return loadVideoFrameEl(project.videoPreview || project.video);
+  return Promise.resolve(null);
+}
+
+function rgbDistance(a, b) {
+  var dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2];
+  return Math.sqrt(dr * dr + dg * dg + db * db);
+}
+function rgbToHex(rgb) {
+  return '#' + rgb.map(function (v) {
+    var n = Math.max(0, Math.min(255, Math.round(v))).toString(16);
+    return n.length < 2 ? '0' + n : n;
+  }).join('');
+}
+// derives a second tone from the same hue when a source is too close to monochrome for a real
+// second cluster to exist -- an HSL lightness shift, computed rather than authored
+function deriveToneVariant(rgb) {
+  var r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255;
+  var max = Math.max(r, g, b), min = Math.min(r, g, b);
+  var l = (max + min) / 2, d = max - min, h = 0, s = 0;
+  if (d !== 0) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  var l2 = l > 0.5 ? l - 0.3 : l + 0.3;
+  l2 = Math.max(0.08, Math.min(0.92, l2));
+  var cc = (1 - Math.abs(2 * l2 - 1)) * s;
+  var x = cc * (1 - Math.abs((h / 60) % 2 - 1));
+  var m = l2 - cc / 2;
+  var seg = Math.floor(h / 60) % 6;
+  var rp = [cc, x, 0, 0, x, cc][seg], gp = [x, cc, cc, x, 0, 0][seg], bp = [0, 0, x, cc, cc, x][seg];
+  return [(rp + m) * 255, (gp + m) * 255, (bp + m) * 255];
+}
+function extractPaletteFromSource(source) {
+  var W = 48, H = 48;
+  var c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  var ctx = c.getContext('2d', { willReadFrequently: true });
+  var data;
+  try {
+    ctx.drawImage(source, 0, 0, W, H);
+    data = ctx.getImageData(0, 0, W, H).data;
+  } catch (e) {
+    return null; // undecodable/tainted source -- caller falls back to WASH_PALETTE
+  }
+  var LEVELS = 6;
+  var buckets = {};
+  for (var i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 128) continue; // skip transparent
+    var r = data[i], g = data[i + 1], b = data[i + 2];
+    var key = Math.min(LEVELS - 1, (r / 256 * LEVELS) | 0) + '_' +
+      Math.min(LEVELS - 1, (g / 256 * LEVELS) | 0) + '_' +
+      Math.min(LEVELS - 1, (b / 256 * LEVELS) | 0);
+    var bucket = buckets[key];
+    if (!bucket) bucket = buckets[key] = { count: 0, r: 0, g: 0, b: 0 };
+    bucket.count++; bucket.r += r; bucket.g += g; bucket.b += b;
+  }
+  var list = Object.keys(buckets).map(function (k) { return buckets[k]; });
+  if (!list.length) return null;
+  list.sort(function (a, b) { return b.count - a.count; });
+  function avg(bk) { return [bk.r / bk.count, bk.g / bk.count, bk.b / bk.count]; }
+  var first = avg(list[0]);
+  var second = null;
+  for (var j = 1; j < list.length; j++) {
+    var cand = avg(list[j]);
+    if (rgbDistance(first, cand) > 60) { second = cand; break; }
+  }
+  if (!second) second = deriveToneVariant(first);
+  return [rgbToHex(first), rgbToHex(second)];
+}
+
+var projectPaletteCache = {}; // project.id -> Promise<[hex,hex] | null>
+function getProjectPalette(project) {
+  if (!projectPaletteCache[project.id]) {
+    projectPaletteCache[project.id] = getProjectMainImageEl(project).then(function (source) {
+      return source ? extractPaletteFromSource(source) : null;
+    }).catch(function () { return null; });
+  }
+  return projectPaletteCache[project.id];
+}
+
+// ---- Liquid Ether: lazily mounted the first time a real extracted palette is ready (so it
+// never flashes a placeholder color), skipped entirely under reduced motion like every other
+// motion effect in this file. setSiteColors() is the one entry point both updateWash() (Work
+// carousel, below) and the initial page-load palette funnel through -- see js/liquid-ether.js
+// for the actual WebGL fluid sim and its own morph-on-setColors() cinematic blend. ----
+var liquidEtherApi = null, liquidEtherLoading = false;
+function setSiteColors(pair) {
+  if (!pair) return;
+  if (liquidEtherApi) { liquidEtherApi.setColors(pair); return; }
+  if (liquidEtherLoading || reducedMotion) return;
+  liquidEtherLoading = true;
+  import('./liquid-ether.js').then(function (mod) {
+    var mount = document.getElementById('ambient-liquid-ether');
+    if (!mount) return;
+    liquidEtherApi = mod.createLiquidEther(mount, { colors: pair });
+  });
 }
 
 // ---- Loader: two completely independent systems sharing one screen. ----
@@ -1225,18 +1351,27 @@ var openProjectPage; // assigned below; called by the Work carousel when a card 
     animHandle = requestAnimationFrame(step);
   }
 
-  // ---- background wash: crossfades to the active project's own tone-palette colors via the
+  // ---- background wash: crossfades to the active project's own live-extracted palette via the
   // --wash-a/--wash-b @property transition declared in CSS -- the browser interpolates the
   // color itself over time, so the previous project's hue is still genuinely visible partway
-  // through, never a hard cut. Just setting the property value is enough; no WAAPI needed. ----
-  function updateWash(idx) {
-    // a project can pin its own [a,b] pair here (see `kanye-west`) when the cyclic
-    // WASH_PALETTE index it happens to land on doesn't match its actual cover art --
-    // everything else still falls through to the normal index-based cycle unchanged
-    var t = PROJECTS[idx].wash ||
-      WASH_PALETTE[((idx % WASH_PALETTE.length) + WASH_PALETTE.length) % WASH_PALETTE.length];
+  // through, never a hard cut. The same extracted pair also drives the Liquid Ether layer
+  // (setSiteColors(), which runs its own cinematic morph on the WebGL side) so both background
+  // systems always agree and neither invents its own color. ----
+  function applyPalette(t) {
     wash.style.setProperty('--wash-a', t[0]);
     wash.style.setProperty('--wash-b', t[1]);
+    setSiteColors(t);
+  }
+  function updateWash(idx) {
+    var project = PROJECTS[idx];
+    var fallback = WASH_PALETTE[((idx % WASH_PALETTE.length) + WASH_PALETTE.length) % WASH_PALETTE.length];
+    getProjectPalette(project).then(function (extracted) {
+      // the user may have already rotated on to a different project by the time extraction
+      // resolves (PDF render / video seek can take a beat) -- a superseded result is dropped
+      // rather than yanking the wash/Liquid Ether backward to a project that's no longer active
+      if (PROJECTS[displayedIndex] !== project) return;
+      applyPalette(extracted || fallback);
+    });
   }
 
   // ---- lower-left info (number/title/category/year) -- updates the instant the active card

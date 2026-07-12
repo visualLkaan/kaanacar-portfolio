@@ -1,4 +1,18 @@
-<!DOCTYPE html>
+I want to change
+ the concept before any more implementation.
+
+I no longer want the intro video to be scroll-controlled.
+
+Instead:
+
+Play 0001-0240.mp4 immediately as the background of the loader.
+Place a dark overlay above the video.
+Animate the word PORTFOLIO in the center.
+I do not want a simple fade-in. I want abstract geometric shapes or letter fragments that transform into the final word "PORTFOLIO".
+Let the video continue playing naturally.
+When the video naturally fades to black at the end, remove the loader and reveal the hero.
+The transition from the video's final black frame to the hero should feel seamless.
+Do not implement yet. First show me a motion plan describing every animation beat.claude --version<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -14,19 +28,6 @@
 </head>
 <body>
 
-<!-- One continuous animated canvas behind the entire page -- fixed, never re-created per section -->
-<div id="ambient-bg" aria-hidden="true">
-  <div class="ambient-blob ambient-blob-1" data-depth="0.6"></div>
-  <div class="ambient-blob ambient-blob-2" data-depth="1"></div>
-  <div class="ambient-blob ambient-blob-3" data-depth="1.3"></div>
-  <div class="ambient-blob ambient-blob-4" data-depth="1.6"></div>
-  <!-- Liquid Ether (see js/liquid-ether.js): a WebGL fluid-sim layer mounted lazily by
-       js/script.js once the active project's palette has been extracted -- colors morph in
-       live, never hardcoded here. Sits above the blobs, still fully behind real content
-       (inherits #ambient-bg's z-index:-1) and never intercepts clicks (pointer-events:none). -->
-  <div id="ambient-liquid-ether"></div>
-</div>
-
 <!-- Film grain overlay, sits above everything, ambient texture -->
 <svg class="grain" aria-hidden="true">
   <filter id="grain-filter">
@@ -37,12 +38,16 @@
 </svg>
 
 <div id="loader" aria-hidden="true">
-  <canvas id="loader-canvas"></canvas>
-  <div id="loader-type" aria-hidden="true">
-    <div class="loader-type-line loader-type-line--lead">WELCOME</div>
-    <div class="loader-type-line loader-type-line--sub">to my</div>
-    <div class="loader-type-line loader-type-line--lead">PORTFOLIO</div>
+  <div class="loader-name">
+    <span class="lw" style="--d:0">K</span><span class="lw" style="--d:1">A</span><span class="lw" style="--d:2">A</span><span class="lw" style="--d:3">N</span>
+    <span class="loader-gap"></span>
+    <span class="lw" style="--d:4">A</span><span class="lw" style="--d:5">C</span><span class="lw" style="--d:6">A</span><span class="lw" style="--d:7">R</span>
   </div>
+  <div class="loader-meta">
+    <span>VISUAL COMMUNICATION DESIGNER</span>
+    <span id="loader-pct">00%</span>
+  </div>
+  <div class="loader-bar"><div class="loader-bar-fill" id="bar-fill"></div></div>
 </div>
 
 <div class="frame-bar frame-top" id="frame-top">
@@ -90,18 +95,66 @@
     <div class="rule"></div>
   </div>
 
-  <!-- The homepage 3D carousel (project covers only) is generated from the PROJECTS data
-       object in js/script.js -- add a project there and it appears here with no HTML changes. -->
-  <div id="work-carousel"></div>
-</section>
+  <div id="work-track">
 
-<!-- Project page (level 2: ordered image gallery or video page, level 3: enlarge any image) --
-     opened via a cinematic transition when a carousel card is clicked. Entirely generated from
-     PROJECTS in js/script.js; this is just the empty shell. -->
-<div id="project-page" role="dialog" aria-modal="true" aria-hidden="true">
-  <button class="project-page__close" id="project-page-close" aria-label="Close project">✕</button>
-  <div class="project-page__inner" id="project-page-inner"></div>
-</div>
+    <article class="card">
+      <div class="card-media" data-tone="1"></div>
+      <div class="card-caption">
+        <div>
+          <span class="card-index">REEL 01/05</span>
+          <h3>Wayfinding System</h3>
+        </div>
+        <div class="card-tags">Branding<br>2025</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-media" data-tone="2"></div>
+      <div class="card-caption">
+        <div>
+          <span class="card-index">REEL 02/05</span>
+          <h3>Field Notes — Editorial</h3>
+        </div>
+        <div class="card-tags">Print / Layout<br>2025</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-media" data-tone="3"></div>
+      <div class="card-caption">
+        <div>
+          <span class="card-index">REEL 03/05</span>
+          <h3>Loop — Motion Study</h3>
+        </div>
+        <div class="card-tags">Motion<br>2024</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-media" data-tone="4"></div>
+      <div class="card-caption">
+        <div>
+          <span class="card-index">REEL 04/05</span>
+          <h3>Kiln — Packaging</h3>
+        </div>
+        <div class="card-tags">Packaging<br>2024</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="card-media" data-tone="5"></div>
+      <div class="card-caption">
+        <div>
+          <span class="card-index">REEL 05/05</span>
+          <h3>Nightshift — App Concept</h3>
+        </div>
+        <div class="card-tags">UI / UX<br>2024</div>
+      </div>
+    </article>
+
+  </div>
+  <p class="work-drag-hint reveal">→ Drag or scroll horizontally</p>
+</section>
 
 <section id="about">
   <div class="section-head reveal">
@@ -147,8 +200,6 @@
   <button id="back-to-top">Back to top ↑</button>
 </footer>
 
-<!-- self-hosted, no CDN -- used by the loader's crowd-canvas only, same vendoring convention as assets/vendor/pdfjs -->
-<script src="assets/vendor/gsap/gsap.min.js"></script>
 <script src="js/script.js"></script>
 </body>
 </html>

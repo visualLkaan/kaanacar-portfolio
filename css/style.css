@@ -87,6 +87,20 @@ a:focus-visible, button:focus-visible, .carousel-card:focus-visible, .gallery-it
   opacity:0.4;
 }
 
+/* Liquid Ether mount point (js/liquid-ether.js) -- a real-time WebGL fluid layer, colored live
+   from whichever project is active in the Work carousel (see js/script.js's palette-extraction
+   pipeline). pointer-events:none so it can never intercept a click/hover meant for real content;
+   the simulation itself listens on window, not this element, so mouse tracking is unaffected.
+   Opacity is toned down from the effect's own full-strength demo look so it reads as an ambient
+   layer behind text rather than competing with it. */
+#ambient-liquid-ether{
+  position:absolute; inset:0;
+  pointer-events:none;
+  opacity:0.6;
+  mix-blend-mode:screen;
+}
+#ambient-liquid-ether canvas{ display:block; }
+
 /* ---------- FILM GRAIN ---------- */
 .grain{
   position:fixed; inset:0; width:100%; height:100%;
