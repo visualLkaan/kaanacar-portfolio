@@ -19,6 +19,7 @@
 
   --display: 'Fraunces', serif;
   --poster: 'Bebas Neue', sans-serif;
+  --geist: 'Geist', sans-serif;
   --body: 'Inter', sans-serif;
   --mono: 'IBM Plex Mono', monospace;
 
@@ -87,19 +88,6 @@ a:focus-visible, button:focus-visible, .carousel-card:focus-visible, .gallery-it
   opacity:0.4;
 }
 
-/* Liquid Ether mount point (js/liquid-ether.js) -- a real-time WebGL fluid layer, colored live
-   from whichever project is active in the Work carousel (see js/script.js's palette-extraction
-   pipeline). pointer-events:none so it can never intercept a click/hover meant for real content;
-   the simulation itself listens on window, not this element, so mouse tracking is unaffected.
-   Opacity is toned down from the effect's own full-strength demo look so it reads as an ambient
-   layer behind text rather than competing with it. */
-#ambient-liquid-ether{
-  position:absolute; inset:0;
-  pointer-events:none;
-  opacity:0.6;
-  mix-blend-mode:screen;
-}
-#ambient-liquid-ether canvas{ display:block; }
 
 /* ---------- FILM GRAIN ---------- */
 .grain{
@@ -212,7 +200,7 @@ header.frame-away{ top:0; }
 }
 nav ul{
   list-style:none; display:flex; gap:32px;
-  font-family:var(--mono); font-size:0.78rem; letter-spacing:0.05em; text-transform:uppercase;
+  font-family:var(--geist); font-weight:500; font-size:0.85rem; letter-spacing:0.01em;
 }
 nav a{ position:relative; padding-bottom:3px; }
 nav a::after{
@@ -233,28 +221,68 @@ nav a:hover::after{ width:100%; }
 }
 #hero.show{ opacity:1; }
 
-.hero-name-wrap{ width:100%; position:relative; z-index:1; }
+/* Liquid Glass mount point (js/liquid-glass.js) -- a hero-scoped WebGL material, colored live
+   from whichever project is active in the Work carousel (same extracted-palette pipeline the
+   wash uses). Unlike a typical ambient-color layer, this shader already composites its own
+   restraint internally (near-black base, capped glow, its own vignette alpha) -- the intent is a
+   physical material, not a tinted overlay -- so it renders at close to full opacity rather than
+   being tamed further by CSS blend tricks. pointer-events:none so it can never intercept a
+   click/hover. */
+#hero-liquid-glass{
+  position:absolute; inset:0;
+  z-index:-1;
+  pointer-events:none;
+  opacity:0.96;
+  will-change:transform;
+}
+#hero-liquid-glass canvas{ display:block; }
+
+.hero-name-wrap{ width:100%; position:relative; z-index:1; will-change:transform; }
 .hero-name{
-  font-family:var(--poster);
-  line-height:0.82;
-  letter-spacing:0.005em;
-  font-size:clamp(4rem, 18vw, 15rem);
+  font-family:var(--geist);
+  font-weight:700;
+  line-height:0.92;
+  letter-spacing:-0.02em;
+  font-size:clamp(3rem, 13vw, 10.5rem);
 }
 .hero-name .row{
   display:block;
   overflow:hidden;
-  background-image: radial-gradient(
+  /* Two stacked, comma-paired layers on one background-clip:text: the cursor-reactive radial
+     glow (unchanged, position driven by --mx/--my), plus a slow specular sweep -- a soft, narrow
+     near-white band drifting across the letters on its own timer, independent of the cursor.
+     Kept as a single neutral highlight (no hue) so it reads as light catching polished glass, not
+     a colored/chrome effect; animation is `background-position` only, so it composes cleanly with
+     the existing `background-size` transition below and is fully muted by the sitewide
+     prefers-reduced-motion rule (`*{ animation:none }`). */
+  background-image:
+    radial-gradient(
       circle at var(--mx) var(--my),
-      var(--accent-2) 0%,
-      var(--accent) 32%,
-      var(--paper) 68%
+      var(--violet-tint) 0%,
+      var(--accent) 38%,
+      var(--paper) 72%
+    ),
+    linear-gradient(
+      115deg,
+      transparent 40%,
+      rgba(255, 255, 255, 0.22) 47%,
+      rgba(255, 255, 255, 0.5) 50%,
+      rgba(255, 255, 255, 0.22) 53%,
+      transparent 60%
     );
-  background-size:180% 180%;
+  background-size:180% 180%, 320% 320%;
+  background-position:0 0, -40% -40%;
   -webkit-background-clip:text;
   background-clip:text;
   color:transparent;
   -webkit-text-fill-color:transparent;
   transition:background-size 0.4s ease;
+  animation:hero-shine-sweep 8s ease-in-out infinite;
+}
+@keyframes hero-shine-sweep{
+  0%{ background-position:0 0, -40% -40%; }
+  35%{ background-position:0 0, 140% 140%; }
+  100%{ background-position:0 0, 140% 140%; }
 }
 .hero-name .row span,
 .hero-name .row{
@@ -374,7 +402,7 @@ section{ padding:130px 0 60px; }
   pointer-events:none;
 }
 .carousel-info__num{ font-family:var(--mono); font-size:0.78rem; color:var(--accent); letter-spacing:0.04em; }
-.carousel-info__title{ font-family:var(--display); font-weight:400; font-size:clamp(1.4rem, 3.2vw, 2.4rem); color:var(--paper); margin:8px 0 6px; }
+.carousel-info__title{ font-family:var(--poster); font-weight:400; letter-spacing:0.01em; font-size:clamp(1.7rem, 3.8vw, 2.9rem); color:var(--paper); margin:8px 0 6px; }
 .carousel-info__meta{ font-family:var(--mono); font-size:0.72rem; color:var(--muted); letter-spacing:0.03em; text-transform:uppercase; display:flex; gap:14px; }
 
 .carousel-ring{
@@ -483,8 +511,13 @@ section{ padding:130px 0 60px; }
   pointer-events:none;
 }
 .project-page__head .num{ font-family:var(--mono); font-size:0.78rem; color:var(--accent); }
-.project-page__head h2{ font-family:var(--display); font-weight:400; font-size:clamp(1.8rem, 4vw, 3rem); margin:10px 0 8px; }
+.project-page__head h2{ font-family:var(--poster); font-weight:400; letter-spacing:0.01em; font-size:clamp(2.2rem, 5vw, 3.6rem); margin:10px 0 8px; }
 .project-page__head .meta{ font-family:var(--mono); font-size:0.75rem; color:var(--muted); letter-spacing:0.04em; text-transform:uppercase; }
+.project-page__head .description{
+  font-family:var(--display); font-style:italic; font-weight:300;
+  font-size:clamp(0.95rem, 1.6vw, 1.15rem); line-height:1.55;
+  color:var(--paper); max-width:640px; margin-top:14px;
+}
 
 /* ordered horizontal gallery: exactly the case study's own images, in source order -- drag or
    wheel to browse, click any image to enlarge it (level 3), Escape/scrim-click to return */

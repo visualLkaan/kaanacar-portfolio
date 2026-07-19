@@ -8,7 +8,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400&family=Geist:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -20,11 +20,6 @@
   <div class="ambient-blob ambient-blob-2" data-depth="1"></div>
   <div class="ambient-blob ambient-blob-3" data-depth="1.3"></div>
   <div class="ambient-blob ambient-blob-4" data-depth="1.6"></div>
-  <!-- Liquid Ether (see js/liquid-ether.js): a WebGL fluid-sim layer mounted lazily by
-       js/script.js once the active project's palette has been extracted -- colors morph in
-       live, never hardcoded here. Sits above the blobs, still fully behind real content
-       (inherits #ambient-bg's z-index:-1) and never intercepts clicks (pointer-events:none). -->
-  <div id="ambient-liquid-ether"></div>
 </div>
 
 <!-- Film grain overlay, sits above everything, ambient texture -->
@@ -66,6 +61,12 @@
 </header>
 
 <section id="hero">
+  <!-- Liquid Glass (see js/liquid-glass.js): a hero-scoped WebGL material -- dark glass with
+       slow, refracted colored light underneath -- mounted lazily by js/script.js once the active
+       project's palette has been extracted -- colors come from that same extracted palette,
+       never hardcoded here. Sits behind the hero content only (never intercepts clicks,
+       pointer-events:none). -->
+  <div id="hero-liquid-glass" class="hero-liquid-glass" aria-hidden="true"></div>
   <div class="hero-name-wrap" id="hero-name-wrap">
     <h1 class="hero-name">
       <span class="row" data-row="1">KAAN</span>

@@ -20,13 +20,6 @@ var PROJECTS = [
       'assets/projects/linka/plate-05.jpg',
       'assets/projects/linka/plate-06.jpg'
     ] },
-  { id: 'wayfinding',   title: 'Wayfinding System',       category: 'Branding',          year: '2025', size: 'lg', type: 'image', images: 8 },
-  { id: 'field-notes',  title: 'Field Notes — Editorial', category: 'Print / Layout',    year: '2025', size: 'md', type: 'image', images: 7 },
-  { id: 'loop',         title: 'Loop — Motion Study',     category: 'Motion',             year: '2024', size: 'md', type: 'image', images: 6 },
-  { id: 'kiln',         title: 'Kiln — Packaging',        category: 'Packaging',          year: '2024', size: 'lg', type: 'image', images: 9 },
-  { id: 'reel',         title: 'Studio Reel — 2026',      category: 'Motion',             year: '2026', size: 'lg', type: 'video', supporting: 3 },
-  { id: 'launch-film',  title: 'Launch Film — Kiln',      category: 'Motion / Product',   year: '2024', size: 'md', type: 'video', supporting: 2 },
-  { id: 'stillwater',   title: 'Stillwater — Brand Film', category: 'Motion / Branding',  year: '2023', size: 'lg', type: 'image', images: 7 },
   // `pdf` projects have no `cover`/`images` -- the cover (page 1) and every following page
   // (the gallery, in order) are rendered live from the PDF itself in the visitor's browser
   // (see loadPdfjs()/renderPdfPageToUrl() below), so adding pages to the file is the only step
@@ -67,7 +60,23 @@ var PROJECTS = [
     // browser (see loadAutoImageSequence() above) so dropping more `photoN` files into this
     // project's folder later adds them to the gallery in filename order with zero code changes
     autoImages: { dir: 'assets/projects/unknown-place/', prefix: 'photo', start: 1,
-      extensions: ['jpeg', 'jpg', 'png', 'webp'] } }
+      extensions: ['jpeg', 'jpg', 'png', 'webp'] } },
+  { id: 'fight-club-soap', title: 'Fight Club Soap', category: '3D Product Visualization', year: '2026', size: 'md', type: 'video',
+    description: 'A cinematic 3D recreation of the iconic Fight Club soap, modeled, textured and rendered in Blender with a focus on realistic materials, lighting and presentation.',
+    videoPreview: 'assets/projects/fight-club-soap/fight-club-soap.mp4',
+    video: 'assets/projects/fight-club-soap/fight-club-soap.mp4' },
+  { id: 'scarface', title: 'SCARFACE', category: 'Alternative Film Poster', year: '2026', size: 'md', type: 'image',
+    pdf: 'assets/projects/scarface/main-photo.pdf', // cover only (1 page) -- no gallery pages of its own
+    pdfPagesInGallery: false, // the gallery is the one real artwork plate below, not this cover
+    extraImages: [
+      'assets/projects/scarface/scarface-artwork.jpg'
+    ] },
+  { id: 'messi', title: 'MESSI', category: 'Illustration', year: '2026', size: 'md', type: 'image',
+    pdf: 'assets/projects/messi/main-photo.pdf', // cover only (1 page) -- no gallery pages of its own
+    pdfPagesInGallery: false, // the gallery is the one real artwork plate below, not this cover
+    extraImages: [
+      'assets/projects/messi/messi-artwork.jpg'
+    ] }
 ];
 
 // deterministic gradient palette -- every tone used anywhere (cards, gallery plates, supporting
@@ -342,21 +351,23 @@ function getProjectPalette(project) {
   return projectPaletteCache[project.id];
 }
 
-// ---- Liquid Ether: lazily mounted the first time a real extracted palette is ready (so it
-// never flashes a placeholder color), skipped entirely under reduced motion like every other
-// motion effect in this file. setSiteColors() is the one entry point both updateWash() (Work
-// carousel, below) and the initial page-load palette funnel through -- see js/liquid-ether.js
-// for the actual WebGL fluid sim and its own morph-on-setColors() cinematic blend. ----
-var liquidEtherApi = null, liquidEtherLoading = false;
+// ---- Liquid Glass (hero-scoped): lazily mounted the first time a real extracted palette is
+// ready (so it never flashes a placeholder color), skipped entirely under reduced motion like
+// every other motion effect in this file. setSiteColors() is the one entry point both
+// updateWash() (Work carousel, below) and the initial page-load palette funnel through -- both
+// call it synchronously from the same palette result, so the wash and the glass material always
+// update in the same frame. See js/liquid-glass.js for the actual WebGL shader and its own
+// morph-on-setColors() cinematic blend (tuned to match the wash's own CSS transition exactly). ----
+var liquidGlassApi = null, liquidGlassLoading = false;
 function setSiteColors(pair) {
   if (!pair) return;
-  if (liquidEtherApi) { liquidEtherApi.setColors(pair); return; }
-  if (liquidEtherLoading || reducedMotion) return;
-  liquidEtherLoading = true;
-  import('./liquid-ether.js').then(function (mod) {
-    var mount = document.getElementById('ambient-liquid-ether');
+  if (liquidGlassApi) { liquidGlassApi.setColors(pair); return; }
+  if (liquidGlassLoading || reducedMotion) return;
+  liquidGlassLoading = true;
+  import('./liquid-glass.js').then(function (mod) {
+    var mount = document.getElementById('hero-liquid-glass');
     if (!mount) return;
-    liquidEtherApi = mod.createLiquidEther(mount, { colors: pair });
+    liquidGlassApi = mod.createLiquidGlass(mount, { colors: pair });
   });
 }
 
@@ -720,11 +731,19 @@ function setSiteColors(pair) {
   loop();
 })();
 
-// ---- Hero name: cursor-reactive gradient reveal ----
+// ---- Hero name: cursor-reactive gradient reveal, plus a two-layer parallax riding the same
+// damped cursor position (curX/curY below) -- no second mousemove listener, no new tracking
+// state, just two more small transforms derived from the value this IIFE already computes every
+// frame. Typography (#hero-name-wrap) moves slightly more than the background glass
+// (#hero-liquid-glass), matching the "typography 1-3px, background slightly less" depth cue --
+// both capped low enough to read as physical settling, not floating. ----
 (function () {
   var heroName = document.querySelector('.hero-name');
   var hero = document.getElementById('hero');
   if (!heroName || !hero || reducedMotion) return;
+
+  var nameWrap = document.getElementById('hero-name-wrap');
+  var glassMount = document.getElementById('hero-liquid-glass');
 
   var targetX = 50, targetY = 50, curX = 50, curY = 50;
 
@@ -753,6 +772,14 @@ function setSiteColors(pair) {
 
     heroName.style.setProperty('--mx', curX + '%');
     heroName.style.setProperty('--my', curY + '%');
+
+    var normX = (curX - 50) / 50, normY = (curY - 50) / 50;
+    if (nameWrap) {
+      nameWrap.style.transform = 'translate3d(' + (normX * 2.5).toFixed(2) + 'px,' + (normY * 1.8).toFixed(2) + 'px,0)';
+    }
+    if (glassMount) {
+      glassMount.style.transform = 'translate3d(' + (normX * 1.1).toFixed(2) + 'px,' + (normY * 0.7).toFixed(2) + 'px,0)';
+    }
 
     requestAnimationFrame(loop);
   }
@@ -836,6 +863,13 @@ var openProjectPage; // assigned below; called by the Work carousel when a card 
     head.appendChild(num);
     head.appendChild(h2);
     head.appendChild(meta);
+    // optional per-project blurb -- most projects don't set this, so most heads are unchanged
+    if (project.description) {
+      var desc = document.createElement('p');
+      desc.className = 'description';
+      desc.textContent = project.description;
+      head.appendChild(desc);
+    }
     return head;
   }
 
