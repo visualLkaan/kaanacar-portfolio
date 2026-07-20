@@ -786,6 +786,37 @@ function setSiteColors(pair) {
   loop();
 })();
 
+// ---- Hero scroll micro-parallax: a near-imperceptible scale/blur as the hero is scrolled past,
+// so the hero->work handoff reads as felt rather than seen -- Apple/Linear/Raycast-style
+// restraint, not a cinematic push-through. Deliberately narrow range (max 1.02 scale, 1.5px blur)
+// and no opacity change (that property is already owned by the entrance fade above). The target
+// is damped toward each frame with the same lerp approach as the cursor parallax above, so it
+// settles smoothly rather than snapping 1:1 to scroll position. ----
+(function () {
+  var hero = document.getElementById('hero');
+  if (!hero || reducedMotion) return;
+
+  var MAX_SCALE = 0.02; // 1 -> 1.02
+  var MAX_BLUR = 1.5;   // px
+
+  var targetT = 0, curT = 0;
+
+  function updateTarget() {
+    var heroHeight = hero.offsetHeight || 1;
+    targetT = Math.min(Math.max(window.scrollY / heroHeight, 0), 1);
+  }
+  window.addEventListener('scroll', updateTarget, { passive: true });
+  updateTarget();
+
+  function loop() {
+    curT += (targetT - curT) * 0.12;
+    hero.style.transform = 'scale(' + (1 + curT * MAX_SCALE).toFixed(4) + ')';
+    hero.style.filter = curT > 0.001 ? 'blur(' + (curT * MAX_BLUR).toFixed(2) + 'px)' : 'none';
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+
 // ---- Letterbox frame bars: retract once past hero ----
 (function () {
   var hero = document.getElementById('hero');
