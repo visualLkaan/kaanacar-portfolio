@@ -799,13 +799,20 @@ function setSiteColors(pair) {
   var MAX_SCALE = 0.02; // 1 -> 1.02
   var MAX_BLUR = 1.5;   // px
 
+  var track = document.getElementById('hero-scroll-track');
   var targetT = 0, curT = 0;
 
   function updateTarget() {
-    var heroHeight = hero.offsetHeight || 1;
+    // reference distance is "how far the hero has to scroll to fully unpin", not its own
+    // offsetHeight -- since #hero now sits pinned (position:sticky) inside a taller
+    // #hero-scroll-track to give the background video scroll runway, hero.offsetHeight alone
+    // would stay ~1 viewport and make this effect max out right at the start of that pinned
+    // range instead of at the actual hero->work handoff at the end of it
+    var heroHeight = (track ? track.offsetHeight - hero.offsetHeight : hero.offsetHeight) || 1;
     targetT = Math.min(Math.max(window.scrollY / heroHeight, 0), 1);
   }
   window.addEventListener('scroll', updateTarget, { passive: true });
+  window.addEventListener('resize', updateTarget);
   updateTarget();
 
   function loop() {
@@ -815,6 +822,159 @@ function setSiteColors(pair) {
     requestAnimationFrame(loop);
   }
   loop();
+})();
+
+// ---- Hero background: preloaded WebP frame-sequence, painted from scroll position ----
+// Replaces video.currentTime scrubbing entirely. A <video> seek is an async, GOP-dependent
+// decode -- the actual cause of the old approach's stutter, no matter how the scroll math was
+// tuned. Every frame here is a separate, already-decoded still image, so painting a given scroll
+// progress is just a synchronous canvas draw with nothing to stall on. Frames start preloading
+// the instant this runs, in parallel with the loader's own several-second hold, so essentially
+// the whole sequence is already resident in memory by the time the hero reveals. Under reduced
+// motion, #hero-scroll-track collapses to one viewport (no scroll-driven progression is wired up
+// at all) but the opening frame still loads and paints once, statically -- reduced motion means
+// no motion, not no image.
+//
+// Source frames (assets/hero/frames) are exported at the master's native 3840x2160, quality
+// 95-100, uncompromised -- but decoding all 126 of those at full native size simultaneously would
+// hold on the order of 4GB of raw bitmap memory at once, which is what would actually cause
+// jank/crashes, not the file size. So each frame is decoded via createImageBitmap's own
+// resize-on-decode (a real resample done once by the browser, not a quality cut) to the exact
+// pixel size this screen's canvas backing store can show -- full native detail on a 4K/high-DPR
+// display, no more pixels than will ever be painted on a smaller one. This is the "optimize the
+// rendering" half of the brief; the stored assets themselves are untouched, full-quality 4K.
+(function () {
+  var track = document.getElementById('hero-scroll-track');
+  var canvas = document.getElementById('hero-bg-canvas');
+  var content = document.getElementById('hero-content');
+  if (!track || !canvas) return;
+
+  var ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high'; // best resampling for the native-res source -> backing-store draw
+
+  var FRAMES_BASE = 'assets/hero/frames/';
+  var SCROLL_RANGE = 1700; // px of scroll to play through the full sequence, matches the CSS track
+  var CONTENT_MAX_SCALE = 0.03;   // 1 -> 0.97 as the sequence approaches its final frame
+  var CONTENT_MAX_TRANSLATE = 10; // 0 -> -10px
+  var CONTENT_MAX_FADE = 0.05;    // 1 -> 0.95
+
+  var frames = [];  // sparse: frames[i] is set once that frame has loaded and decoded
+  var frameCount = 0;
+  var nativeW = 0, nativeH = 0;
+  var lastDrawnIndex = -1;
+  var curT = 0; // read by resizeCanvas even before the scroll-scrub path (if any) starts owning it
+
+  function frameUrl(i, pad) {
+    var n = String(i + 1);
+    while (n.length < pad) n = '0' + n;
+    return FRAMES_BASE + 'frame-' + n + '.webp';
+  }
+
+  // the size to decode each frame at: the same "cover" scale drawFrame itself uses, so the
+  // decoded bitmap is exactly big enough to cover the canvas at 1:1 with no further upscaling --
+  // capped at the source's own native size (min(...,1)) since decoding *larger* than the master
+  // would just upscale it, not add real detail
+  function coverDecodeSize() {
+    var scale = Math.min(1, Math.max(canvas.width / nativeW, canvas.height / nativeH));
+    return {
+      w: Math.max(1, Math.round(nativeW * scale)),
+      h: Math.max(1, Math.round(nativeH * scale))
+    };
+  }
+
+  // createImageBitmap's resizeWidth/Height performs a real high-quality resample during decode
+  // itself (not a quality cut -- it's the same pixels the canvas would end up showing anyway),
+  // so the browser never has to hold a full 3840x2160 bitmap per frame in memory. Falls back to a
+  // plain Image (decoded at native size) on the rare browser without createImageBitmap.
+  function loadFrame(i, pad, decodeW, decodeH) {
+    var url = frameUrl(i, pad);
+    if (window.createImageBitmap) {
+      return fetch(url).then(function (r) { return r.blob(); }).then(function (blob) {
+        return createImageBitmap(blob, { resizeWidth: decodeW, resizeHeight: decodeH, resizeQuality: 'high' });
+      }).then(function (bitmap) { frames[i] = bitmap; }).catch(function () {});
+    }
+    var img = new Image();
+    img.src = url;
+    var settle = img.decode ? img.decode() : new Promise(function (resolve) {
+      img.onload = resolve; img.onerror = resolve;
+    });
+    return settle.catch(function () {}).then(function () { frames[i] = img; });
+  }
+
+  // draws a frame into the canvas replicating CSS object-fit:cover -- canvas has no native
+  // equivalent, so the source crop rect is computed by hand. Works for both ImageBitmap and
+  // Image sources -- both expose plain .width/.height once ready.
+  function drawFrame(index) {
+    var img = frames[index];
+    if (!img || index === lastDrawnIndex) return;
+    var cw = canvas.width, ch = canvas.height;
+    var iw = img.width, ih = img.height;
+    if (!cw || !ch || !iw || !ih) return;
+    var scale = Math.max(cw / iw, ch / ih);
+    var sw = cw / scale, sh = ch / scale;
+    var sx = (iw - sw) / 2, sy = (ih - sh) / 2;
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+    lastDrawnIndex = index;
+  }
+
+  function resizeCanvas() {
+    var dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(canvas.clientWidth * dpr);
+    canvas.height = Math.round(canvas.clientHeight * dpr);
+    lastDrawnIndex = -1; // force a redraw at the new backing size
+    if (frameCount) drawFrame(Math.round(curT * (frameCount - 1)));
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  fetch(FRAMES_BASE + 'manifest.json').then(function (r) { return r.json(); }).then(function (manifest) {
+    frameCount = manifest.count;
+    nativeW = manifest.width;
+    nativeH = manifest.height;
+    var pad = manifest.pad || 3;
+    resizeCanvas();
+    var decodeSize = coverDecodeSize();
+
+    if (reducedMotion) {
+      loadFrame(0, pad, decodeSize.w, decodeSize.h).then(function () { drawFrame(0); });
+      return;
+    }
+
+    for (var i = 0; i < frameCount; i++) loadFrame(i, pad, decodeSize.w, decodeSize.h);
+    startScrollScrub();
+  }).catch(function () {});
+
+  function startScrollScrub() {
+    var targetT = 0;
+
+    function updateTarget() {
+      var trackTop = track.getBoundingClientRect().top + window.scrollY;
+      targetT = Math.min(Math.max((window.scrollY - trackTop) / SCROLL_RANGE, 0), 1);
+    }
+    window.addEventListener('scroll', updateTarget, { passive: true });
+    window.addEventListener('resize', updateTarget);
+    updateTarget();
+
+    function loop() {
+      curT += (targetT - curT) * 0.09;
+
+      var idx = Math.round(curT * (frameCount - 1));
+      // walk back to the nearest already-loaded frame instead of leaving the canvas stale if
+      // loading hasn't caught up yet (slow connection) -- never draws a missing frame
+      while (idx > 0 && !frames[idx]) idx--;
+      drawFrame(idx);
+
+      if (content) {
+        var scale = 1 - curT * CONTENT_MAX_SCALE;
+        var ty = -curT * CONTENT_MAX_TRANSLATE;
+        content.style.transform = 'scale(' + scale.toFixed(4) + ') translateY(' + ty.toFixed(2) + 'px)';
+        content.style.opacity = (1 - curT * CONTENT_MAX_FADE).toFixed(3);
+      }
+
+      requestAnimationFrame(loop);
+    }
+    loop();
+  }
 })();
 
 // ---- Letterbox frame bars: retract once past hero ----

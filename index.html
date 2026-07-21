@@ -60,29 +60,47 @@
   </nav>
 </header>
 
+<!-- Scroll runway for the hero background video: #hero pins via position:sticky while this
+     track scrolls underneath it, giving the video ~1700px of scroll to play through before the
+     hero releases into Work -- see the scroll-scrub IIFE in js/script.js. Collapses to exactly
+     one viewport under prefers-reduced-motion (css/style.css), so no extra scroll is ever forced
+     on a reduced-motion visitor. -->
+<div class="hero-scroll-track" id="hero-scroll-track">
 <section id="hero">
+  <!-- Hero background: a preloaded WebP frame sequence (assets/hero/frames, extracted from the
+       finalized hero video) painted onto a canvas frame-by-frame from scroll position only
+       (js/script.js) -- not a <video>, so there is no seek/decode latency to stutter on. -->
+  <div class="hero-video-bg" aria-hidden="true">
+    <canvas id="hero-bg-canvas" class="hero-bg-canvas"></canvas>
+    <div class="hero-video-overlay"></div>
+  </div>
+
   <!-- Liquid Glass (see js/liquid-glass.js): a hero-scoped WebGL material -- dark glass with
        slow, refracted colored light underneath -- mounted lazily by js/script.js once the active
        project's palette has been extracted -- colors come from that same extracted palette,
        never hardcoded here. Sits behind the hero content only (never intercepts clicks,
        pointer-events:none). -->
   <div id="hero-liquid-glass" class="hero-liquid-glass" aria-hidden="true"></div>
-  <div class="hero-name-wrap" id="hero-name-wrap">
-    <h1 class="hero-name">
-      <span class="row" data-row="1">KAAN</span>
-      <span class="row" data-row="2">ACAR</span>
-    </h1>
-  </div>
 
-  <div class="hero-sub">
-    <p class="hero-role">Visual Communication Designer</p>
-    <p class="hero-line">I turn ideas into things people feel before they read a word of them.</p>
+  <div class="hero-content" id="hero-content">
+    <div class="hero-name-wrap" id="hero-name-wrap">
+      <h1 class="hero-name">
+        <span class="row" data-row="1">KAAN</span>
+        <span class="row" data-row="2">ACAR</span>
+      </h1>
+    </div>
+
+    <div class="hero-sub">
+      <p class="hero-role">Visual Communication Designer</p>
+      <p class="hero-line">I turn ideas into things people feel before they read a word of them.</p>
+    </div>
   </div>
 
   <div class="scroll-cue">
     <span class="dash"></span> Scroll
   </div>
 </section>
+</div>
 
 <section id="work">
   <div class="section-head reveal">
