@@ -75,12 +75,13 @@
     <div class="hero-video-overlay"></div>
   </div>
 
-  <!-- Liquid Glass (see js/liquid-glass.js): a hero-scoped WebGL material -- dark glass with
-       slow, refracted colored light underneath -- mounted lazily by js/script.js once the active
-       project's palette has been extracted -- colors come from that same extracted palette,
-       never hardcoded here. Sits behind the hero content only (never intercepts clicks,
-       pointer-events:none). -->
-  <div id="hero-liquid-glass" class="hero-liquid-glass" aria-hidden="true"></div>
+  <!-- Prism (see js/prism-bg.js): a hero-scoped WebGL background, a slow-wobbling raymarched
+       glass prism recolored into this site's own violet/indigo identity -- one calm, fixed color
+       treatment, never tied to the Work carousel's extracted palette. Mounted once by
+       js/script.js. Sits behind the hero content only (never intercepts clicks,
+       pointer-events:none); a CSS mask keeps its glow out of the text's own footprint so it never
+       competes with the KAAN ACAR typography. -->
+  <div id="hero-prism" class="hero-prism" aria-hidden="true"></div>
 
   <div class="hero-content" id="hero-content">
     <div class="hero-name-wrap" id="hero-name-wrap">

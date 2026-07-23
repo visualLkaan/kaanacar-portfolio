@@ -235,7 +235,7 @@ nav a:hover::after{ width:100%; }
 }
 #hero.show{ opacity:1; }
 
-/* Background video layer -- sits behind the liquid glass (z-index:-2 vs its -1), full-bleed,
+/* Background video layer -- sits behind the Prism background (z-index:-2 vs its -1), full-bleed,
    object-fit:cover. The 0.3px blur + vignette + flat dark tint below are the only "cinematic
    processing" applied -- deliberately subtle enough to preserve the source footage's own color
    and contrast rather than soften it. */
@@ -262,25 +262,26 @@ nav a:hover::after{ width:100%; }
    can be staggered independently of the parent's opacity fade above. Kept to a small translateY
    (8px) and short, tightly-staggered delays -- Apple/Linear-style restraint, not a cinematic
    reveal. */
-#hero.show .hero-name{ opacity:1; transform:translateY(0); }
+#hero.show .hero-name{ opacity:1; transform:perspective(1600px) rotateX(6deg) translateY(0); }
 #hero.show .hero-sub{ opacity:1; transform:translateY(0); }
 #hero.show .scroll-cue{ opacity:1; }
 
-/* Liquid Glass mount point (js/liquid-glass.js) -- a hero-scoped WebGL material, colored live
-   from whichever project is active in the Work carousel (same extracted-palette pipeline the
-   wash uses). Unlike a typical ambient-color layer, this shader already composites its own
-   restraint internally (near-black base, capped glow, its own vignette alpha) -- the intent is a
-   physical material, not a tinted overlay -- so it renders at close to full opacity rather than
-   being tamed further by CSS blend tricks. pointer-events:none so it can never intercept a
-   click/hover. */
-#hero-liquid-glass{
+/* Prism mount point (js/prism-bg.js) -- a hero-scoped WebGL background, one fixed premium
+   violet/indigo color identity (never tied to the Work carousel's palette, so it never shifts as
+   the visitor scrolls through projects). The shader's own raymarched falloff already keeps the
+   glow soft and contained without needing a CSS vignette; the mask-image here does the one job
+   CSS still owns -- fading the effect out of the exact area the KAAN ACAR copy occupies, so the
+   two never compete for attention. pointer-events:none so it can never intercept a click/hover. */
+#hero-prism{
   position:absolute; inset:0;
   z-index:-1;
   pointer-events:none;
-  opacity:0.96;
+  opacity:0.85;
+  -webkit-mask-image:radial-gradient(ellipse 60% 52% at 50% 46%, transparent 0%, transparent 55%, black 100%);
+  mask-image:radial-gradient(ellipse 60% 52% at 50% 46%, transparent 0%, transparent 55%, black 100%);
   will-change:transform;
 }
-#hero-liquid-glass canvas{ display:block; }
+#hero-prism canvas{ display:block; }
 
 /* Wraps hero-name-wrap + hero-sub only (not scroll-cue) so the near-imperceptible end-of-scroll
    settle (scale/translateY/opacity, driven by the video-scrub IIFE in js/script.js) can be
@@ -298,47 +299,53 @@ nav a:hover::after{ width:100%; }
   letter-spacing:-0.02em;
   font-size:clamp(3rem, 13vw, 10.5rem);
   opacity:0;
-  transform:translateY(8px);
+  /* static perspective tilt -- a fixed few degrees, not cursor-driven -- so the type reads as a
+     tilted plane catching light (Apple-keynote depth) rather than flat print. Carried through both
+     states below so only translateY animates on entrance, the tilt itself never moves. */
+  transform:perspective(1600px) rotateX(6deg) translateY(8px);
   transition:opacity 0.5s cubic-bezier(.76,0,.24,1), transform 0.5s cubic-bezier(.76,0,.24,1);
 }
 .hero-name .row{
   display:block;
   overflow:hidden;
-  /* Two stacked, comma-paired layers on one background-clip:text: the cursor-reactive radial
-     glow (unchanged, position driven by --mx/--my), plus a slow specular sweep -- a soft, narrow
-     near-white band drifting across the letters on its own timer, independent of the cursor.
-     Kept as a single neutral highlight (no hue) so it reads as light catching polished glass, not
-     a colored/chrome effect; animation is `background-position` only, so it composes cleanly with
-     the existing `background-size` transition below and is fully muted by the sitewide
-     prefers-reduced-motion rule (`*{ animation:none }`). */
+  /* Two stacked, comma-paired layers on one background-clip:text: a static vertical fill running
+     light-to-dark through the deep-violet family (the "lit from above" read that gives the glyphs
+     their pseudo-3D body) plus a slow specular band drifting across on its own timer -- a vanilla-
+     CSS take on React Bits' Shiny Text (https://reactbits.dev/text-animations/shiny-text): same
+     comma-b/spread/color-stop shape, ported from its background-position tween into a CSS
+     keyframe. No cursor reactivity here (unlike the design this replaces) -- deliberately calm and
+     time-driven only, muted by the sitewide prefers-reduced-motion rule (`*{ animation:none }`). */
   background-image:
-    radial-gradient(
-      circle at var(--mx) var(--my),
-      var(--violet-tint) 0%,
-      var(--accent) 38%,
-      var(--paper) 72%
+    linear-gradient(
+      165deg,
+      #F5EEFF 0%,
+      #C9B6FF 16%,
+      #9678EE 34%,
+      #6142C4 54%,
+      #37256E 76%,
+      #150B36 100%
     ),
     linear-gradient(
-      115deg,
-      transparent 40%,
-      rgba(255, 255, 255, 0.22) 47%,
-      rgba(255, 255, 255, 0.5) 50%,
-      rgba(255, 255, 255, 0.22) 53%,
-      transparent 60%
+      120deg,
+      transparent 35%,
+      rgba(240, 232, 255, 0.6) 50%,
+      transparent 65%
     );
-  background-size:180% 180%, 320% 320%;
-  background-position:0 0, -40% -40%;
+  background-size:100% 100%, 250% 100%;
+  background-position:0 0, 180% center;
   -webkit-background-clip:text;
   background-clip:text;
   color:transparent;
   -webkit-text-fill-color:transparent;
-  transition:background-size 0.4s ease;
-  animation:hero-shine-sweep 8s ease-in-out infinite;
+  /* soft ambient depth, not a bevel -- a tight dark line for edge definition plus a wide, faint
+     glow beneath for lift; both understated so the gradient fill still does the visual work */
+  text-shadow:0 1px 0 rgba(10, 6, 30, 0.5), 0 10px 28px rgba(36, 20, 90, 0.32);
+  animation:hero-shiny-sweep 7s cubic-bezier(.4,0,.2,1) infinite;
 }
-@keyframes hero-shine-sweep{
-  0%{ background-position:0 0, -40% -40%; }
-  35%{ background-position:0 0, 140% 140%; }
-  100%{ background-position:0 0, 140% 140%; }
+@keyframes hero-shiny-sweep{
+  0%{ background-position:0 0, 180% center; }
+  60%{ background-position:0 0, -80% center; }
+  100%{ background-position:0 0, -80% center; }
 }
 .hero-name .row span,
 .hero-name .row{

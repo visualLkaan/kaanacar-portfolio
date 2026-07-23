@@ -237,8 +237,8 @@ function screenItemsFor(project) {
 // second tone from the first via an HSL lightness shift, the same "darker/lighter pair" shape
 // WASH_PALETTE below already uses). Nothing here is hand-picked per project; nothing samples an
 // image twice (results are cached per project id, since a cover never changes after first look).
-// Both the Work background wash (updateWash(), further down) and the Liquid Ether layer
-// (setSiteColors()) are driven from this one pipeline so they can never drift apart. ----
+// Drives the Work background wash (updateWash(), further down) -- the hero's own background
+// (js/prism-bg.js) has a fixed color identity and does not consume this palette. ----
 function loadImageEl(src) {
   return new Promise(function (resolve, reject) {
     var img = new Image();
@@ -351,25 +351,6 @@ function getProjectPalette(project) {
   return projectPaletteCache[project.id];
 }
 
-// ---- Liquid Glass (hero-scoped): lazily mounted the first time a real extracted palette is
-// ready (so it never flashes a placeholder color), skipped entirely under reduced motion like
-// every other motion effect in this file. setSiteColors() is the one entry point both
-// updateWash() (Work carousel, below) and the initial page-load palette funnel through -- both
-// call it synchronously from the same palette result, so the wash and the glass material always
-// update in the same frame. See js/liquid-glass.js for the actual WebGL shader and its own
-// morph-on-setColors() cinematic blend (tuned to match the wash's own CSS transition exactly). ----
-var liquidGlassApi = null, liquidGlassLoading = false;
-function setSiteColors(pair) {
-  if (!pair) return;
-  if (liquidGlassApi) { liquidGlassApi.setColors(pair); return; }
-  if (liquidGlassLoading || reducedMotion) return;
-  liquidGlassLoading = true;
-  import('./liquid-glass.js').then(function (mod) {
-    var mount = document.getElementById('hero-liquid-glass');
-    if (!mount) return;
-    liquidGlassApi = mod.createLiquidGlass(mount, { colors: pair });
-  });
-}
 
 // ---- Loader: two completely independent systems sharing one screen. ----
 //
@@ -731,19 +712,18 @@ function setSiteColors(pair) {
   loop();
 })();
 
-// ---- Hero name: cursor-reactive gradient reveal, plus a two-layer parallax riding the same
-// damped cursor position (curX/curY below) -- no second mousemove listener, no new tracking
-// state, just two more small transforms derived from the value this IIFE already computes every
-// frame. Typography (#hero-name-wrap) moves slightly more than the background glass
-// (#hero-liquid-glass), matching the "typography 1-3px, background slightly less" depth cue --
-// both capped low enough to read as physical settling, not floating. ----
+// ---- Hero name: a two-layer parallax riding a damped cursor position (curX/curY below) --
+// Typography (#hero-name-wrap) moves slightly more than the Prism background (#hero-prism),
+// matching the "typography 1-3px, background slightly less" depth cue -- both capped low enough
+// to read as physical settling, not floating. The gradient/shine on the name itself is now pure
+// CSS (see .hero-name .row), so this loop no longer needs to feed it a cursor position. ----
 (function () {
   var heroName = document.querySelector('.hero-name');
   var hero = document.getElementById('hero');
   if (!heroName || !hero || reducedMotion) return;
 
   var nameWrap = document.getElementById('hero-name-wrap');
-  var glassMount = document.getElementById('hero-liquid-glass');
+  var prismMount = document.getElementById('hero-prism');
 
   var targetX = 50, targetY = 50, curX = 50, curY = 50;
 
@@ -770,15 +750,12 @@ function setSiteColors(pair) {
     curX += (mixX - curX) * 0.06;
     curY += (mixY - curY) * 0.06;
 
-    heroName.style.setProperty('--mx', curX + '%');
-    heroName.style.setProperty('--my', curY + '%');
-
     var normX = (curX - 50) / 50, normY = (curY - 50) / 50;
     if (nameWrap) {
       nameWrap.style.transform = 'translate3d(' + (normX * 2.5).toFixed(2) + 'px,' + (normY * 1.8).toFixed(2) + 'px,0)';
     }
-    if (glassMount) {
-      glassMount.style.transform = 'translate3d(' + (normX * 1.1).toFixed(2) + 'px,' + (normY * 0.7).toFixed(2) + 'px,0)';
+    if (prismMount) {
+      prismMount.style.transform = 'translate3d(' + (normX * 1.1).toFixed(2) + 'px,' + (normY * 0.7).toFixed(2) + 'px,0)';
     }
 
     requestAnimationFrame(loop);
@@ -822,6 +799,19 @@ function setSiteColors(pair) {
     requestAnimationFrame(loop);
   }
   loop();
+})();
+
+// ---- Prism (hero-scoped): a fixed, premium violet/indigo ambient light behind the hero copy --
+// lazily imported (code-split, same convention as the WebGL modules elsewhere on this page) and
+// mounted once on load, skipped entirely under reduced motion like every other motion effect in
+// this file. See js/prism-bg.js for the shader itself. ----
+(function () {
+  if (reducedMotion) return;
+  var mount = document.getElementById('hero-prism');
+  if (!mount) return;
+  import('./prism-bg.js').then(function (mod) {
+    mod.createPrism(mount);
+  });
 })();
 
 // ---- Hero background: preloaded WebP frame-sequence, painted from scroll position ----
@@ -1579,13 +1569,11 @@ var openProjectPage; // assigned below; called by the Work carousel when a card 
   // ---- background wash: crossfades to the active project's own live-extracted palette via the
   // --wash-a/--wash-b @property transition declared in CSS -- the browser interpolates the
   // color itself over time, so the previous project's hue is still genuinely visible partway
-  // through, never a hard cut. The same extracted pair also drives the Liquid Ether layer
-  // (setSiteColors(), which runs its own cinematic morph on the WebGL side) so both background
-  // systems always agree and neither invents its own color. ----
+  // through, never a hard cut. Work-section-only; the hero's own background no longer shares in
+  // this palette. ----
   function applyPalette(t) {
     wash.style.setProperty('--wash-a', t[0]);
     wash.style.setProperty('--wash-b', t[1]);
-    setSiteColors(t);
   }
   function updateWash(idx) {
     var project = PROJECTS[idx];
@@ -1593,7 +1581,7 @@ var openProjectPage; // assigned below; called by the Work carousel when a card 
     getProjectPalette(project).then(function (extracted) {
       // the user may have already rotated on to a different project by the time extraction
       // resolves (PDF render / video seek can take a beat) -- a superseded result is dropped
-      // rather than yanking the wash/Liquid Ether backward to a project that's no longer active
+      // rather than yanking the wash backward to a project that's no longer active
       if (PROJECTS[displayedIndex] !== project) return;
       applyPalette(extracted || fallback);
     });
