@@ -17,6 +17,7 @@ export function initIntro() {
 
   var track = document.getElementById('intro-scroll-track');
   var canvas = document.getElementById('intro-bg-canvas');
+  var veilEl = document.getElementById('intro-entry-veil');
   if (!track || !canvas) return;
 
   var ctx = canvas.getContext('2d');
@@ -33,6 +34,7 @@ export function initIntro() {
                             // ignores this -- see loadFrame)
   var LERP = 0.4;          // scroll->frame smoothing: intentionally light (vs. the hero's 0.09) so
                             // this reads as "you are scrubbing," not the hero's slow cinematic settle
+  var VEIL_FADE_FRACTION = 0.08; // fraction of the sequence over which the entry veil (see below) clears
 
   // Three identity lines, each visible only inside its own frame window during the footage's early
   // clean-cloud passage (frames roughly 10-230 -- verified against the actual rendered footage, not
@@ -50,6 +52,7 @@ export function initIntro() {
   var queue = [];     // indices wanted but not yet loading, nearest-first
   var activeLoads = 0;
   var frameCount = 0, nativeW = 0, nativeH = 0, pad = 3;
+  var veilFadeEndFrame = 0;
   var decodeW = 0, decodeH = 0;
   var lastDrawnIndex = -1;
   var lastQueuedIndex = -1;
@@ -229,11 +232,23 @@ export function initIntro() {
       + ty.toFixed(2) + 'px) scale(' + scale.toFixed(4) + ')';
   }
 
+  // Entry veil: fully opaque at the very first frame (bridging from the Work section's dark
+  // canvas), eased to fully transparent by veilFadeEndFrame so the footage's own bright opening
+  // (white clouds/blue sky) never appears as an abrupt cut. Pure function of scroll position, same
+  // as applyTitle above, so it reverses exactly on scroll-up.
+  function applyVeil(posF) {
+    if (!veilEl) return;
+    var p = Math.min(Math.max(posF / veilFadeEndFrame, 0), 1);
+    var opacity = 1 - easeOutCubic(p);
+    veilEl.style.opacity = opacity.toFixed(3);
+  }
+
   fetch(FRAMES_BASE + 'manifest.json').then(function (r) { return r.json(); }).then(function (manifest) {
     frameCount = manifest.count;
     nativeW = manifest.width;
     nativeH = manifest.height;
     pad = manifest.pad || 3;
+    veilFadeEndFrame = Math.max(1, frameCount * VEIL_FADE_FRACTION);
     resizeCanvas();
     var decodeSize = coverDecodeSize();
     decodeW = decodeSize.w;
@@ -272,6 +287,7 @@ export function initIntro() {
       if (found >= 0) drawFrame(found);
 
       for (var i = 0; i < TITLES.length; i++) applyTitle(TITLES[i], posF);
+      applyVeil(posF);
 
       if (idx !== lastQueuedIndex) {
         refillQueue(idx, dir);

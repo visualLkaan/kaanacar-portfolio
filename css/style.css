@@ -706,6 +706,25 @@ section{ padding:130px 0 60px; }
 
 .intro-bg{ position:absolute; inset:0; z-index:-2; overflow:hidden; pointer-events:none; }
 .intro-bg-canvas{ width:100%; height:100%; display:block; }
+
+/* Entry veil: bridges the Work section's flat --ink background into the footage's own bright
+   opening frames (white cloud/blue sky) so the cut from "dark cinematic canvas" to "bright
+   render" doesn't read as a page boundary. Reuses --ink + --hero-indigo -- the same ambient hue
+   the hero's own background blobs use -- rather than a plain black scrim, so the darkness feels
+   like the hero's own ambient light lingering rather than a new effect. Opacity is written per
+   scroll frame by js/intro-scroll.js (fully opaque at the very first frame, eased to 0 within the
+   footage's first ~8%), the same "no transition, direct per-frame value" approach the volumetric
+   titles already use -- never touches the render itself, only sits above it. */
+.intro-entry-veil{
+  position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse at center, rgba(46,30,99,0.4) 0%, rgba(16,16,20,0.94) 75%);
+  opacity:1;
+}
+@media (prefers-reduced-motion: reduce){
+  .intro-entry-veil{ display:none; }
+}
+
 .intro-bg-overlay{
   position:absolute; inset:0;
   background:
