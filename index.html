@@ -123,27 +123,28 @@
   <div class="project-page__inner" id="project-page-inner"></div>
 </div>
 
+<!-- Cinematic identity intro: an 800-frame Blender render (assets/intro/frames, extracted from
+     assets/intro/source.mkv) painted onto a canvas frame-by-frame from scroll position only,
+     replacing the old static About section entirely -- see js/intro-scroll.js. #about pins via
+     position:sticky while #intro-scroll-track scrolls underneath it, same mechanism as the hero's
+     own #hero-scroll-track. Three identity lines (name/role/school) emerge as scroll-synced
+     volumetric type only during the early clean-cloud portion of the footage (roughly frames
+     10-230); the footage's own baked "WHO I AM" reveal and everything after it plays completely
+     untouched, exactly as rendered. -->
+<div class="intro-scroll-track" id="intro-scroll-track">
 <section id="about">
-  <div class="section-head reveal">
-    <span class="num">02</span>
-    <h2>About</h2>
-    <div class="rule"></div>
+  <div class="intro-bg" aria-hidden="true">
+    <canvas id="intro-bg-canvas" class="intro-bg-canvas"></canvas>
+    <div class="intro-bg-overlay"></div>
   </div>
-  <div class="about-grid">
-    <div class="portrait reveal" data-tone="6">
-      <span>PORTRAIT<br>PLACEHOLDER</span>
-    </div>
-    <div class="about-copy reveal">
-      <p>I'm Kaan Acar — a visual communication design student who treats every brief as <em>a small argument</em> about clarity, rhythm and restraint.</p>
-      <p>My process moves between sketchbook and screen, print and motion, always circling back to one question: what does this need to say, and how simply can it say it?</p>
-      <div class="skills">
-        <strong>Tools</strong> — Figma, Adobe Suite, After Effects, Webflow<br>
-        <strong>Focus</strong> — Branding / Editorial Design / Motion / UI<br>
-        <strong>Based in</strong> — Istanbul, TR · Open to internships
-      </div>
-    </div>
+  <h2 class="sr-only">About</h2>
+  <div class="intro-titles" id="intro-titles">
+    <p class="intro-title intro-title--name">KAAN ACAR</p>
+    <p class="intro-title intro-title--role">Visual Communication Designer</p>
+    <p class="intro-title intro-title--school">Bahçeşehir University</p>
   </div>
 </section>
+</div>
 
 <section id="contact">
   <div class="section-head reveal">

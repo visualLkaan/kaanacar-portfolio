@@ -967,6 +967,19 @@ function getProjectPalette(project) {
   }
 })();
 
+// ---- Intro (about replacement): cinematic scroll-scrubbed identity sequence -- lazily imported
+// (same code-split convention as the Prism mount above) and mounted once on load. Runs regardless
+// of reducedMotion -- js/intro-scroll.js branches internally, same as the hero's own frame-sequence
+// IIFE, so a reduced-motion visitor still gets a static opening frame + the (CSS-driven, always
+// visible) titles rather than nothing. See js/intro-scroll.js for the loader/scrub/title logic. ----
+(function () {
+  var mount = document.getElementById('intro-titles');
+  if (!mount) return;
+  import('./intro-scroll.js').then(function (mod) {
+    mod.initIntro();
+  });
+})();
+
 // ---- Letterbox frame bars: retract once past hero ----
 (function () {
   var hero = document.getElementById('hero');

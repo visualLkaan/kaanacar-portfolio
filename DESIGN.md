@@ -211,7 +211,24 @@ Guidance:
 - **Media card:** near-sharp radius (4px), no shadow; hover state changes
   filter/box-shadow subtly, never lifts with a shadow.
 - **Section numeral / index label:** mono, `primary` color, precedes every
-  section heading — the site's recurring "frame counter" motif.
+  section heading — the site's recurring "frame counter" motif. The cinematic
+  identity intro (`#about`, replacing the old bio section) is a deliberate
+  exception: it has no visible section head at all, same as the hero — both
+  are full-bleed cinematic set-pieces rather than standard content sections,
+  so the numeral sequence intentionally skips from `01` to `03`.
+- **Volumetric scroll title:** a three-phase emerge → hold → pass-through
+  treatment for type that needs to read as physically present in a scrubbed
+  scene, not pasted over it — used for the identity intro's name/role/school
+  lines. Driven directly by scroll position every frame (no CSS transitions,
+  so it reverses exactly on scroll-up): blur 20px→0 and a slight upward
+  settle on entry, a brief near-static hold at full clarity, then blur
+  0→16px with scale continuing past 1 as it exits, selling "the camera
+  passed through it" rather than a flat fade. Reuses existing values rather
+  than inventing new ones — the same `perspective(1600px)` and ~6°
+  `rotateX` settle the hero name already uses. Scoped to one use so far;
+  don't reach for it as a generic reveal-on-scroll utility (`.reveal` still
+  owns that job) — it's specifically for type meant to feel embedded in a
+  moving scene.
 
 ## Do's and Don'ts
 
