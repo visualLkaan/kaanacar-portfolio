@@ -4,6 +4,93 @@ Working log for the kaan-acar-portfolio site. Written at the end of a session th
 the loader, the hero/global background, and a full rebuild of the Work section. Read this
 before starting the next session.
 
+## Completed this session (2026-07-27): Hero->Blender visual continuity (entry veil) + the
+Blender footage's own empty-sky ending now bleeds into a scroll-controlled blackout, followed by
+a new placeholder-content #reveal section that builds itself back up from scroll alone
+
+Two related asks in the same session, both about making the site read as one continuous cinematic
+scroll rather than stacked, independently-cutting sections.
+
+**Part 1 -- Hero/Work -> Blender entry veil:** user felt the cut from the dark Hero/Work canvas
+into the identity intro's Blender footage (which opens on a bright white-cloud/blue-sky frame) read
+as "entering another page." Added `.intro-entry-veil` (`index.html`, `css/style.css`,
+`js/intro-scroll.js`): a radial-gradient scrim (`--ink` + `--hero-indigo`, the same hue the site's
+own ambient blobs already use, not a new color) sitting between the canvas and the existing
+`.intro-bg-overlay` vignette, full opacity at the very first frame, eased to 0 (via the module's
+existing `easeOutCubic`) over the footage's first ~8% (`VEIL_FADE_FRACTION`) -- a pure function of
+`posF`, written every frame like the volumetric titles already are, so it reverses exactly on
+scroll-up. Nothing about the Hero, the 800-frame render, the titles, or the baked "WHO I AM"/pink-
+jacket reveal was touched.
+
+**Part 2 -- sky-to-black + cinematic reveal system:** user wanted continued scrolling during the
+footage's own empty-sky ending to gradually darken the sky to pure black (not a cut), hold briefly
+on black, then have a next section slowly build itself out of the dark -- ambient background first,
+placeholder content after -- entirely scroll-controlled, no timers, content itself explicitly out of
+scope ("do not design the final content yet").
+
+- **`.intro-scroll-track`'s CSS height** gained a further 1500px (`calc(100svh + 6400px + 1500px)`)
+  past the 6400px that plays the actual 800-frame sequence -- deliberately still the *same* track/
+  pin as the frame-scrub, specifically so the sky-to-black moment never has its own pin/unpin
+  boundary. Collapses to `100svh` under `prefers-reduced-motion` same as before (untouched by this
+  change, the extra distance is motion-only).
+- **New `.intro-blackout`** (`index.html`, inside `#about`, above the titles): a literal `#000` --
+  not `--ink` -- full-bleed div, `opacity:0` by default. `js/intro-scroll.js` now tracks the track's
+  *raw* (unclamped) scroll px alongside the existing clamped frame-scrub `targetT`; once that raw
+  value passes `SCROLL_RANGE` (i.e. the footage has been scrubbed all the way to its last frame),
+  `darkenTargetT` ramps 0->1 over a further `DARKEN_RANGE = 1000`px, lerped into `darkenCurT` the
+  same way `curT` already is, then written straight to the blackout's opacity. The remaining 500px
+  of the track's extra height is pure scroll distance where `darkenTargetT` is already clamped at 1
+  -- the "cinematic hold" needed no extra code, just more track to scroll through while nothing
+  changes. Alpha-compositing a flat black over the footage's own sky-blue final frame naturally
+  produces the requested "deeper blue -> almost black -> pure black" sweep with zero manual color
+  keyframing. `display:none` under reduced motion (that visitor's static single frame never had a
+  sky-blue ending to darken to begin with).
+- **New `#reveal` section** (`index.html`, `css/style.css`, own `.reveal-scroll-track`/1800px pin,
+  same mechanism as `#hero-scroll-track`/`#about`'s track), placed right after `.intro-scroll-track`
+  and before `#contact`. Opens already pure black (matching the blackout's held end-state, so the
+  hand-off between the two independent tracks has no visible seam) and builds itself back up in two
+  scroll-driven layers, both computed in `js/intro-scroll.js`'s existing rAF loop against this
+  track's own scroll position (`revealCurT`, same lerp-toward-target pattern as everything else
+  here):
+  - `.reveal-bg` (opacity/scale 0.92->1/blur 10px->0, eased) fades in first, fully in by 45% of the
+    track's scroll range (`REVEAL_BG_END`).
+  - `.reveal-content` (opacity/translateY 28px->0) starts at 35% (`REVEAL_CONTENT_START`) and
+    finishes by 100%, overlapping the background's own tail so the two beats cascade rather than
+    stepping.
+  - **`.reveal-bg`'s three blobs deliberately reuse the site-wide `.ambient-blob` class** (plus new
+    `.reveal-blob`/`.reveal-blob-1/2/3` modifiers for position/size/color, reusing `--hero-indigo`/
+    `--violet`/`--hero-rose`) rather than inventing a new gradient system -- `js/script.js`'s existing
+    mouse-parallax loop (`document.querySelectorAll('.ambient-blob')`, generic over `data-depth`/
+    index, no changes needed) picks them up automatically since they're static HTML present at load,
+    so the drift/parallax is free; only the fade-in itself is new, scroll-driven, and lives on the
+    parent `.reveal-bg` (each blob keeps a fixed relative opacity, so the group fades as one
+    composition rather than three separate writes).
+  - `.reveal-content` currently holds exactly one placeholder line ("More to come.", `.reveal-
+    placeholder`) -- explicitly not final copy. Real content (software/skills/services/availability/
+    open-for-work) is a future session's scope.
+  - Reduced motion: track collapses to `100svh`, `.reveal-bg`/`.reveal-content` default to fully
+    visible via CSS media query (no JS reveal logic runs for that visitor, consistent with how the
+    titles/veil/blackout all already opt out the same way).
+- **`DESIGN.md` updated deliberately alongside this** (not silently) since two genuinely new patterns
+  were introduced: pure `#000` as a one-off cinematic exception to the surface's usual near-black
+  `--ink` (Colors), and the section-scoped reuse of `.ambient-blob` for `#reveal` plus the whole
+  scroll-controlled-blackout-then-build mechanic (Components) -- both framed as narrow, explicitly-
+  scoped exceptions in the same spirit as `#hero-prism`'s existing precedent, not a loosening of the
+  "one ambient canvas" / "no new colors" rules generally. Also updated the existing "numeral sequence
+  skips 01->03" note to account for `#reveal` being a third full-bleed cinematic set-piece with no
+  visible section head (flagged that this may need revisiting once `#reveal` gets real content and
+  plausibly becomes a numbered section).
+- **Not verified in a live browser this session** -- `mcp__claude-in-chrome` failed to establish a
+  tab group in this environment (`tabs_context_mcp` errored on every retry), so this was checked via
+  `node -c` syntax verification and careful re-reading of the full diff (scroll-math clamping,
+  reduced-motion opt-outs, z-index/stacking order, the `.ambient-blob` reuse actually being generic
+  over arbitrary blob count) rather than an actual scrolled-through screenshot pass. **Next session
+  (or the user testing locally) should scroll through the real footage end-to-end** to confirm the
+  darken/hold/reveal timing (`DARKEN_RANGE=1000`, the 500px hold, `REVEAL_RANGE=1800`,
+  `REVEAL_BG_END=0.45`, `REVEAL_CONTENT_START=0.35`) actually reads as unhurried/cinematic rather than
+  too fast or too slow -- these are reasonable first-pass numbers, not measured against real scroll
+  feel yet.
+
 ## Completed this session (2026-07-11, part 9): typography composition tuned against a new visual reference (loader/reference.png), grounded in this site's actual crowd geometry rather than the reference's literal proportions
 
 User added `loader/reference.png` (a WELCOME/to my/PORTFOLIO mockup: huge lead words spanning

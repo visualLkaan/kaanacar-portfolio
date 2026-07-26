@@ -130,7 +130,9 @@
      own #hero-scroll-track. Three identity lines (name/role/school) emerge as scroll-synced
      volumetric type only during the early clean-cloud portion of the footage (roughly frames
      10-230); the footage's own baked "WHO I AM" reveal and everything after it plays completely
-     untouched, exactly as rendered. -->
+     untouched, exactly as rendered. The track's own extra scroll distance now runs past the last
+     frame too -- see .intro-blackout below -- so the footage's own empty-sky ending bleeds into a
+     scroll-controlled blackout rather than cutting straight to #reveal. -->
 <div class="intro-scroll-track" id="intro-scroll-track">
 <section id="about">
   <div class="intro-bg" aria-hidden="true">
@@ -143,6 +145,39 @@
     <p class="intro-title intro-title--name">KAAN ACAR</p>
     <p class="intro-title intro-title--role">Visual Communication Designer</p>
     <p class="intro-title intro-title--school">Bahçeşehir University</p>
+  </div>
+  <!-- Pure black, scroll-driven (js/intro-scroll.js): stays transparent through the entire
+       800-frame scrub, then once the user scrolls past the last frame, opacity ramps 0->1 over
+       the track's own extra scroll distance -- blended over the footage's final empty-sky frame,
+       alpha-compositing a flat black over sky blue naturally sweeps through the same "deeper blue
+       -> almost black" progression a real sky-darkening grade would, with no extra color keyframing
+       needed. Holds at opacity:1 for a further stretch of scroll (still the same pinned #about,
+       nothing new mounts yet) before the section releases into #reveal below. -->
+  <div class="intro-blackout" id="intro-blackout" aria-hidden="true"></div>
+</section>
+</div>
+
+<!-- Cinematic reveal (content not yet designed -- see js/intro-scroll.js and TODO.md): continues
+     directly out of the blackout above with zero hand-off cut (#reveal opens already pure black,
+     matching the blackout's held end-state exactly). Pins the same way #hero/#about do while its
+     own scroll range first fades in a section-scoped reuse of the site's existing ambient-blob
+     mechanism (.ambient-blob -- see #ambient-bg in css/style.css and the mouse-parallax loop in
+     js/script.js -- so these blobs get the exact same drift/parallax for free, not a new system),
+     then fades/settles in .reveal-content once the background is already meaningfully underway.
+     Both are pure functions of this track's own scroll position, same "no CSS transition, direct
+     per-frame write" approach as the rest of this cinematic sequence. .reveal-content is an
+     intentional placeholder -- only the reveal mechanics are meant to be final here. -->
+<div class="reveal-scroll-track" id="reveal-scroll-track">
+<section id="reveal">
+  <h2 class="sr-only">Introduction</h2>
+  <div class="reveal-bg" id="reveal-bg" aria-hidden="true">
+    <div class="ambient-blob reveal-blob reveal-blob-1" data-depth="0.8"></div>
+    <div class="ambient-blob reveal-blob reveal-blob-2" data-depth="1.1"></div>
+    <div class="ambient-blob reveal-blob reveal-blob-3" data-depth="0.6"></div>
+  </div>
+  <div class="reveal-content" id="reveal-content">
+    <!-- Placeholder only -- final copy (software/skills/services/availability) is a future session. -->
+    <p class="reveal-placeholder">More to come.</p>
   </div>
 </section>
 </div>

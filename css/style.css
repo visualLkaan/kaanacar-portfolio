@@ -689,9 +689,13 @@ section{ padding:130px 0 60px; }
    frames this can't preload everything up front like the hero's 126 do, so the JS module keeps a
    small sliding window of frames loaded/decoded and evicts the rest -- nothing here needs to know
    that, it only ever sees whatever frame is currently drawn. */
+/* 6400px plays the 800-frame sequence itself; the extra 1500px (1000 darken + 500 hold) is scroll
+   distance for the post-footage blackout below -- kept in the same track/pin as the frame-scrub so
+   the whole sky-to-black moment never has its own pin/unpin boundary. Constants must match
+   DARKEN_RANGE/HOLD_RANGE in js/intro-scroll.js. */
 .intro-scroll-track{
   position:relative;
-  height:calc(100svh + 6400px);
+  height:calc(100svh + 6400px + 1500px);
 }
 @media (prefers-reduced-motion: reduce){
   .intro-scroll-track{ height:100svh; }
@@ -730,6 +734,25 @@ section{ padding:130px 0 60px; }
   background:
     linear-gradient(rgba(0,0,0,0.1), rgba(0,0,0,0.1)),
     radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.4) 100%);
+}
+
+/* Post-footage blackout: deliberately literal #000 (not --ink) -- the one place on this site pure
+   black is the intended target rather than the theater canvas's near-black, since the brief for
+   this beat is specifically "pull the sky into pure black," a one-off cinematic value the same way
+   the loader/hero treat their own signature moments as exceptions, not a new reusable token.
+   z-index:2 puts it above the titles (already long gone by the time this opacity moves -- the
+   titles' own window closes at frame 230, this starts at frame 800) so it can fully cover the
+   section regardless. Opacity is written per scroll frame by js/intro-scroll.js -- 0 through the
+   entire 800-frame scrub, eased to 1 over the track's own extra scroll distance, then held. */
+.intro-blackout{
+  position:absolute; inset:0;
+  z-index:2;
+  background:#000;
+  opacity:0;
+  pointer-events:none;
+}
+@media (prefers-reduced-motion: reduce){
+  .intro-blackout{ display:none; }
 }
 
 /* sr-only: the section's only heading now that the visible ".section-head" numeral/rule chrome is
@@ -782,6 +805,84 @@ section{ padding:130px 0 60px; }
 @media (prefers-reduced-motion: reduce){
   .intro-title{ opacity:1; filter:none; transform:none; position:relative; }
   .intro-titles{ flex-direction:column; gap:18px; }
+}
+
+/* ---------- REVEAL (post-blackout cinematic build -- content TBD) ---------- */
+/* Opens already pure black (matching .intro-blackout's held end-state, so the hand-off from
+   #about's own track has no visible seam) then builds itself back up purely from scroll, in two
+   scroll-driven layers -- see js/intro-scroll.js. 1800px is enough scroll for both layers to read
+   as unhurried, not a quick flash. */
+.reveal-scroll-track{
+  position:relative;
+  height:calc(100svh + 1800px);
+}
+@media (prefers-reduced-motion: reduce){
+  .reveal-scroll-track{ height:100svh; }
+}
+
+#reveal{
+  min-height:100svh;
+  position:sticky; top:0;
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden;
+  background:#000;
+}
+
+/* Section-scoped reuse of the site-wide ambient-blob mechanism (see #ambient-bg above) for this
+   one cinematic beat -- a deliberate, narrow exception to "one fixed ambient canvas," the same
+   kind of scoped-background precedent #hero-prism already sets. Sharing the .ambient-blob class
+   means js/script.js's existing mouse-parallax loop drives these blobs too, with zero new JS for
+   that part. Opacity/scale/blur (the fade-in itself) live on this one parent, written per scroll
+   frame by js/intro-scroll.js -- each child blob keeps a fixed relative opacity below so the group
+   fades in as one composition rather than needing three separate JS writes. Children's own
+   `transform` stays free for the mouse-parallax loop to keep driving independently -- a child's
+   translate composes naturally inside this parent's scale, no conflict. */
+.reveal-bg{
+  position:absolute; inset:0;
+  z-index:0;
+  overflow:hidden;
+  pointer-events:none;
+  opacity:0;
+  will-change:transform, opacity, filter;
+}
+.reveal-blob{
+  position:absolute;
+  border-radius:50%;
+  filter:blur(95px);
+}
+.reveal-blob-1{
+  width:50vw; height:50vw; max-width:620px; max-height:620px;
+  top:-8%; left:-6%;
+  background:radial-gradient(circle, var(--hero-indigo) 0%, transparent 70%);
+  opacity:0.7;
+}
+.reveal-blob-2{
+  width:44vw; height:44vw; max-width:560px; max-height:560px;
+  bottom:-10%; right:-8%;
+  background:radial-gradient(circle, var(--violet) 0%, transparent 70%);
+  opacity:0.5;
+}
+.reveal-blob-3{
+  width:34vw; height:34vw; max-width:420px; max-height:420px;
+  bottom:8%; left:22%;
+  background:radial-gradient(circle, var(--hero-rose) 0%, transparent 70%);
+  opacity:0.4;
+}
+
+.reveal-content{
+  position:relative; z-index:1;
+  text-align:center;
+  opacity:0;
+}
+.reveal-placeholder{
+  font-family:var(--display); font-style:italic; font-weight:300;
+  font-size:clamp(1.4rem, 3vw, 2rem);
+  color:var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce){
+  .reveal-bg{ opacity:1; }
+  .reveal-content{ opacity:1; }
 }
 
 /* ---------- CONTACT ---------- */

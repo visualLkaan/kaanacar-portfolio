@@ -122,6 +122,12 @@ rarely that it stays meaningful.
 - **Tertiary (`#5B4FE0`) + ambient hues (`#2E1E63`, `#8F8478`, `#6B4A52`):**
   reserved for the ambient background gradient only. They never appear on
   typography, borders, or any foreground UI element.
+- **Pure black (`#000`):** exactly one deliberate exception to the surface
+  being near-black rather than true black — the scroll-controlled blackout
+  that closes the identity intro's footage (`.intro-blackout`), where the
+  brief specifically calls for the sky darkening all the way to pure black as
+  a cinematic beat, not a UI surface. Never used anywhere else; `--ink`
+  remains the surface color everywhere else on the site.
 
 ## Typography
 
@@ -212,10 +218,28 @@ Guidance:
   filter/box-shadow subtly, never lifts with a shadow.
 - **Section numeral / index label:** mono, `primary` color, precedes every
   section heading — the site's recurring "frame counter" motif. The cinematic
-  identity intro (`#about`, replacing the old bio section) is a deliberate
-  exception: it has no visible section head at all, same as the hero — both
-  are full-bleed cinematic set-pieces rather than standard content sections,
-  so the numeral sequence intentionally skips from `01` to `03`.
+  identity intro (`#about`) and the cinematic reveal that follows it
+  (`#reveal`) are deliberate exceptions: neither has a visible section head,
+  same as the hero — all three are full-bleed cinematic set-pieces rather
+  than standard content sections, so the numeral sequence intentionally skips
+  from `01` to `03`. `#reveal`'s content is still a placeholder; once real
+  copy lands there, revisit whether it graduates to a numbered section.
+- **Scroll-controlled scene transition:** the identity intro's footage ends on
+  an empty sky, and rather than cutting to the next section, continued scroll
+  ramps a full-bleed pure-black overlay (`.intro-blackout`) from transparent
+  to opaque — still inside `#about`'s own pin, so there's no pin/unpin
+  boundary mid-transition — holds briefly at fully black, then hands off to
+  `#reveal`, which opens already black and builds itself back up from scroll
+  alone (background first, content after). Every stage is a direct,
+  reversible function of scroll position, no timers, same discipline as the
+  volumetric titles below.
+- **Section-scoped ambient reveal:** `#reveal`'s background reuses the
+  site-wide `.ambient-blob` mechanism (see Elevation & Depth) rather than
+  inventing a new gradient language for one section — the same narrow,
+  deliberate exception to "one fixed ambient canvas" that `#hero-prism`
+  already set a precedent for. Only its fade-in (opacity/scale/blur) is new,
+  scroll-driven, and section-scoped; the blobs' drift/parallax still comes
+  from the one global mouse-parallax loop for free.
 - **Volumetric scroll title:** a three-phase emerge → hold → pass-through
   treatment for type that needs to read as physically present in a scrubbed
   scene, not pasted over it — used for the identity intro's name/role/school
