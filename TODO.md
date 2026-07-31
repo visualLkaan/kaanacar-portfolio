@@ -4,6 +4,43 @@ Working log for the kaan-acar-portfolio site. Written at the end of a session th
 the loader, the hero/global background, and a full rebuild of the Work section. Read this
 before starting the next session.
 
+## Completed this session (2026-07-31): loader-gated startup finished after a mid-session crash;
+identity-intro removal (from the same crashed session) verified complete
+
+User's computer crashed mid-session. Before changing anything, inspected the dirty working tree
+to work out what had already landed rather than re-doing or reverting it -- found two independent,
+uncommitted pieces of work:
+
+- **Identity-intro cinematic sequence removed** (already complete, verified only): all of
+  `assets/intro/frames/*.webp` (~800 files), `assets/intro/source.mkv` and `js/intro-scroll.js`
+  deleted; the `.intro-blackout`/volumetric-scroll-title patterns retired from `DESIGN.md`; `#work`
+  now hands off straight to `#identity` via an `IntersectionObserver` wash-fade (`js/script.js`)
+  instead of the old scroll-controlled blackout; the footage itself was repurposed as a new
+  "WHO I AM" entry in the Work carousel (`assets/projects/who-i-am/who-i-am.mp4`); `js/scenes.js`
+  and `js/fast-travel.js` (its `TRACK_TARGETS`) had their `#about`-track references dropped to
+  match. Confirmed no dangling references remained (`grep` for `intro-scroll`/`intro/frames` across
+  `index.html` came up empty) before treating this half as done.
+- **Loader-gated startup, finished**: the crash landed mid-wiring of an `afterLoader()`/
+  `markLoaderDone()`/`scheduleIdle()` scaffold already sketched at the top of `js/script.js`
+  (its own comment already named exactly what should defer), but `markLoaderDone()` only fired on
+  the reduced-motion bailout and nothing was actually wrapped in `afterLoader()` yet. Finished it:
+  `markLoaderDone()` now also fires from the loader's normal reveal completion (`playReveal`'s
+  timeline `onComplete`, alongside `loader.remove()`) and from the sprite-load-failure fail-open
+  path. Wrapped the seven pieces the scaffold's comment already scoped in `afterLoader()`: the
+  ambient background blobs, Prism, Scenes, Flow Menu, Fast Travel, the scroll-reveal
+  `IntersectionObserver`, and the Work carousel (which also covers every `videoPreview` `<video>`,
+  since those are created inside `buildProjectCard()`). Deliberately left alone: the loader's own
+  crowd/typography timeline, and everything hero-scoped that was already designed to start
+  during the loader's hold on purpose (the hero background frame-sequence preload, hero name/
+  scroll parallax) -- none of those were named in the original scaffold comment.
+- Verified end-to-end with Playwright headless against a plain static server (the Chrome extension
+  wasn't responding this session): polled page state every 500ms through the full loader sequence
+  and confirmed `loaderDone` stays `false` and none of the deferred work (ambient blob transform,
+  Prism canvas, Work carousel cards) starts until `markLoaderDone()` fires; confirmed it then
+  trickles in one item per idle slice rather than all at once; zero console errors throughout.
+  Screenshotted the loader mid-typography-hold and the settled hero/Work section -- visually
+  unchanged from before this session.
+
 ## Completed this session (2026-07-30, part 3): Fast Travel becomes the site's *only* navigation --
 header Work/About/Contact removed, bottom-bar scroll-% readout removed, a 7th "Identity" destination
 added

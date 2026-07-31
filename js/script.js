@@ -5,12 +5,55 @@ var fastTravel = document.getElementById('fast-travel');
 var frameTop = document.getElementById('frame-top');
 var frameBottom = document.getElementById('frame-bottom');
 
+// ---- Loader-gated startup ----
+// While the loader is on screen, its own crowd canvas + GSAP typography timeline should be the
+// only thing spending frame budget -- everything below that isn't needed for the loader itself or
+// for the hero it dissolves into (background effects, Prism, the Work carousel, Scenes, Flow Menu,
+// Fast Travel, scroll-reveal observers, video preview elements) is registered here via
+// `afterLoader()` instead of running immediately, and only actually starts once the loader IIFE
+// below calls `markLoaderDone()` -- which it does the instant `loader.remove()` fires (or
+// synchronously, right away, under prefers-reduced-motion/no-gsap/sprite-load-failure, since in
+// those paths there's no loader animation competing for frames in the first place). Deferred work
+// is then trickled out one callback per idle slice (requestIdleCallback, falling back to
+// setTimeout) rather than run as one synchronous burst the moment the loader disappears -- so
+// mounting Prism, building the carousel, etc. never collapses into a single dropped frame either.
+var loaderDone = false;
+var loaderDoneCallbacks = [];
+function afterLoader(fn) {
+  if (loaderDone) { fn(); return; }
+  loaderDoneCallbacks.push(fn);
+}
+function scheduleIdle(fn) {
+  if (window.requestIdleCallback) { requestIdleCallback(fn, { timeout: 500 }); }
+  else { setTimeout(fn, 0); }
+}
+function markLoaderDone() {
+  if (loaderDone) return;
+  loaderDone = true;
+  var callbacks = loaderDoneCallbacks;
+  loaderDoneCallbacks = [];
+  function runNext() {
+    if (!callbacks.length) return;
+    callbacks.shift()();
+    scheduleIdle(runNext);
+  }
+  scheduleIdle(runNext);
+}
+
 // ---- Work: fully data-driven project model ----
 // Add a project by editing PROJECTS only. Cards, the layered exhibition gallery and the
 // video page are all generated from this array -- no HTML or CSS edits are ever required.
 // image projects: { type:'image', images: <count> }
 // video projects:  { type:'video', supporting: <count of extra images/videos below the video> }
 var PROJECTS = [
+  // `videoPreview` opts a video project into a hover-to-play carousel preview (a muted, looping
+  // <video> in place of the static cover) instead of the default tone-gradient-plus-play-icon
+  // card every other video project uses -- same single file for both `videoPreview` and `video`,
+  // same convention as fight-club-titles/fight-club-soap below.
+  { id: 'who-i-am',     title: 'WHO I AM',                category: 'Blender / 3D Motion', year: '2026', size: 'md', type: 'video',
+    description: 'A cinematic Blender identity piece -- the same footage that once opened this site’s own about section, now shown here as a standalone motion project.',
+    videoPreview: 'assets/projects/who-i-am/who-i-am.mp4',
+    video: 'assets/projects/who-i-am/who-i-am.mp4' },
   { id: 'linka',        title: 'LinkA — E-Dating App',    category: 'UI / UX',            year: '2026', size: 'lg', type: 'image',
     cover: 'assets/projects/linka/cover.jpg',
     images: [
@@ -384,6 +427,7 @@ function getProjectPalette(project) {
     hero.classList.add('show');
     header.classList.add('show');
     if (fastTravel) fastTravel.classList.add('show');
+    markLoaderDone();
     return;
   }
 
@@ -554,6 +598,7 @@ function getProjectPalette(project) {
     hero.classList.add('show');
     header.classList.add('show');
     if (fastTravel) fastTravel.classList.add('show');
+    markLoaderDone();
   };
   img.src = config.src;
 
@@ -668,6 +713,7 @@ function getProjectPalette(project) {
       onComplete: function () {
         gsap.ticker.remove(render);
         loader.remove();
+        markLoaderDone();
       }
     });
 
@@ -678,8 +724,10 @@ function getProjectPalette(project) {
   }
 })();
 
-// ---- Ambient background: one continuous canvas, mouse-reactive drifting light behind the whole page ----
-(function () {
+// ---- Ambient background: one continuous canvas, mouse-reactive drifting light behind the whole
+// page -- deferred via afterLoader(), see the "Loader-gated startup" block at the top of this
+// file: not needed until the loader itself has finished. ----
+afterLoader(function () {
   var blobs = Array.prototype.slice.call(document.querySelectorAll('.ambient-blob'));
   if (!blobs.length || reducedMotion) return;
 
@@ -714,7 +762,7 @@ function getProjectPalette(project) {
     requestAnimationFrame(loop);
   }
   loop();
-})();
+});
 
 // ---- Hero name: a two-layer parallax riding a damped cursor position (curX/curY below) --
 // Typography (#hero-name-wrap) moves slightly more than the Prism background (#hero-prism),
@@ -808,15 +856,17 @@ function getProjectPalette(project) {
 // ---- Prism (hero-scoped): a fixed, premium violet/indigo ambient light behind the hero copy --
 // lazily imported (code-split, same convention as the WebGL modules elsewhere on this page) and
 // mounted once on load, skipped entirely under reduced motion like every other motion effect in
-// this file. See js/prism-bg.js for the shader itself. ----
-(function () {
+// this file. See js/prism-bg.js for the shader itself. Deferred via afterLoader() -- the hero's
+// name/copy are already fully legible without it, so it can pop in a beat after the loader hands
+// off rather than competing with it for frame budget. ----
+afterLoader(function () {
   if (reducedMotion) return;
   var mount = document.getElementById('hero-prism');
   if (!mount) return;
   import('./prism-bg.js').then(function (mod) {
     mod.createPrism(mount);
   });
-})();
+});
 
 // ---- Hero background: preloaded WebP frame-sequence, painted from scroll position ----
 // Replaces video.currentTime scrubbing entirely. A <video> seek is an async, GOP-dependent
@@ -971,51 +1021,39 @@ function getProjectPalette(project) {
   }
 })();
 
-// ---- Intro (about replacement): cinematic scroll-scrubbed identity sequence -- lazily imported
-// (same code-split convention as the Prism mount above) and mounted once on load. Runs regardless
-// of reducedMotion -- js/intro-scroll.js branches internally, same as the hero's own frame-sequence
-// IIFE, so a reduced-motion visitor still gets a static opening frame + the (CSS-driven, always
-// visible) titles rather than nothing. See js/intro-scroll.js for the loader/scrub/title logic. ----
-(function () {
-  var mount = document.getElementById('intro-titles');
-  if (!mount) return;
-  import('./intro-scroll.js').then(function (mod) {
-    mod.initIntro();
-  });
-})();
-
-// ---- Post-blackout scenes (identity/about, software & skills, availability): lazily imported,
-// same code-split convention as the Prism/intro mounts above. Independent of intro-scroll.js --
-// these scenes only depend on their own tracks' scroll position, not on the Blender footage having
-// loaded -- so it's mounted separately rather than nested inside the intro's own init. See
-// js/scenes.js for the reveal engine; that module itself no-ops under reducedMotion. ----
-(function () {
+// ---- Post-blackout scenes (identity, about me, software & skills, availability): lazily
+// imported, same code-split convention as the Prism mount above. See js/scenes.js for the reveal
+// engine; that module itself no-ops under reducedMotion. Deferred via afterLoader() -- these
+// scenes are far below the fold, nothing about them is needed until well after the loader/hero
+// hand-off. ----
+afterLoader(function () {
   var mount = document.getElementById('identity-content');
   if (!mount) return;
   import('./scenes.js').then(function (mod) {
     mod.initScenes();
   });
-})();
+});
 
 // ---- Contact scene (flowing-menu-style hover/tap reveal): lazily imported, same code-split
-// convention as the mounts above. See js/flow-menu.js. ----
-(function () {
+// convention as the mounts above. See js/flow-menu.js. Deferred via afterLoader(). ----
+afterLoader(function () {
   var mount = document.querySelector('.flow-menu');
   if (!mount) return;
   import('./flow-menu.js').then(function (mod) {
     mod.initFlowMenu();
   });
-})();
+});
 
 // ---- Fast Travel (independent quick-nav radial wheel): lazily imported, same code-split
-// convention as the mounts above. See js/fast-travel.js. ----
-(function () {
+// convention as the mounts above. See js/fast-travel.js. Deferred via afterLoader() -- it's a
+// navigation affordance, not needed until the site is actually interactive. ----
+afterLoader(function () {
   var mount = document.getElementById('fast-travel');
   if (!mount) return;
   import('./fast-travel.js').then(function (mod) {
     mod.initFastTravel();
   });
-})();
+});
 
 // ---- Letterbox frame bars: retract once past hero ----
 (function () {
@@ -1039,8 +1077,9 @@ function getProjectPalette(project) {
   obs.observe(hero);
 })();
 
-// ---- Scroll reveal for sections ----
-(function () {
+// ---- Scroll reveal for sections -- deferred via afterLoader(), nothing below the hero needs
+// its reveal observer armed until after the loader hands off. ----
+afterLoader(function () {
   var items = document.querySelectorAll('.reveal');
   var obs = new IntersectionObserver(function (entries) {
     entries.forEach(function (entry) {
@@ -1051,7 +1090,7 @@ function getProjectPalette(project) {
     });
   }, { threshold: 0.15 });
   items.forEach(function (el) { obs.observe(el); });
-})();
+});
 
 // ---- Project page: level 2 (ordered image gallery or video page) + level 3 (enlarge any
 // image). Opened from the carousel via a cinematic "zoom into project" transition -- a
@@ -1350,8 +1389,11 @@ var openProjectPage; // assigned below; called by the Work carousel when a card 
 // ring only ever shows the 8 project covers -- it is the homepage level, not a container for
 // case-study content. Motion signature (easeInOutCubic tween, damped/capped inertia, a small
 // scale "grab tension" while dragging, idle auto-drift, no bounce/elastic anywhere) is adapted
-// from studying apechain.com's actual drag/carousel code -- see chat for the writeup. ----
-(function () {
+// from studying apechain.com's actual drag/carousel code -- see chat for the writeup. Deferred
+// via afterLoader() -- building the ring (including every video-preview <video> element the
+// projects with `videoPreview` set create) is real DOM/decode work that shouldn't compete with
+// the loader for frames, and #work is well below the fold on first paint anyway. ----
+afterLoader(function () {
   var root = document.getElementById('work-carousel');
   if (!root) return;
 
@@ -1994,4 +2036,4 @@ var openProjectPage; // assigned below; called by the Work carousel when a card 
   }
 
   buildRing();
-})();
+});

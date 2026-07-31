@@ -62,9 +62,8 @@
      rather than pulled in, same convention as this project's other React Bits ports -- fanned across
      a right-opening arc rather than a full ring, since the trigger sits near the left edge and a
      full circle would clip off-screen. Each item auto-connects to an existing section: My Projects
-     -> #work, Who I Am -> #about (the identity intro's own baked "WHO I AM" reveal, reset to frame
-     0), Identity -> #identity (name + facts only -- the first black section right after the Blender
-     cinematic, deliberately distinct from About Me's own prose passage below it), About Me ->
+     -> #work, Identity -> #identity (name + facts only -- the first black section right after
+     Work, deliberately distinct from About Me's own prose passage below it), About Me ->
      #about-me, Software & Skills -> #skills, Open For -> #availability, Social Media -> #contact
      (the existing Flowing Menu scene, LinkedIn included there). See js/fast-travel.js for the
      open/close logic and the cinematic-eased smooth scroll. -->
@@ -79,17 +78,15 @@
     <div class="fast-travel__hit-zone" aria-hidden="true"></div>
     <a class="fast-travel__item" role="menuitem" href="#work" data-target="#work" style="--i:0" tabindex="-1">
       <span class="fast-travel__item-dot" aria-hidden="true"></span>My Projects</a>
-    <a class="fast-travel__item" role="menuitem" href="#about" data-target="#about" style="--i:1" tabindex="-1">
-      <span class="fast-travel__item-dot" aria-hidden="true"></span>Who I Am</a>
-    <a class="fast-travel__item" role="menuitem" href="#identity" data-target="#identity" style="--i:2" tabindex="-1">
+    <a class="fast-travel__item" role="menuitem" href="#identity" data-target="#identity" style="--i:1" tabindex="-1">
       <span class="fast-travel__item-dot" aria-hidden="true"></span>Identity</a>
-    <a class="fast-travel__item" role="menuitem" href="#about-me" data-target="#about-me" style="--i:3" tabindex="-1">
+    <a class="fast-travel__item" role="menuitem" href="#about-me" data-target="#about-me" style="--i:2" tabindex="-1">
       <span class="fast-travel__item-dot" aria-hidden="true"></span>About Me</a>
-    <a class="fast-travel__item" role="menuitem" href="#skills" data-target="#skills" style="--i:4" tabindex="-1">
+    <a class="fast-travel__item" role="menuitem" href="#skills" data-target="#skills" style="--i:3" tabindex="-1">
       <span class="fast-travel__item-dot" aria-hidden="true"></span>Software &amp; Skills</a>
-    <a class="fast-travel__item" role="menuitem" href="#availability" data-target="#availability" style="--i:5" tabindex="-1">
+    <a class="fast-travel__item" role="menuitem" href="#availability" data-target="#availability" style="--i:4" tabindex="-1">
       <span class="fast-travel__item-dot" aria-hidden="true"></span>Open For</a>
-    <a class="fast-travel__item" role="menuitem" href="#contact" data-target="#contact" style="--i:6" tabindex="-1">
+    <a class="fast-travel__item" role="menuitem" href="#contact" data-target="#contact" style="--i:5" tabindex="-1">
       <span class="fast-travel__item-dot" aria-hidden="true"></span>Social Media</a>
   </div>
 </div>
@@ -157,43 +154,12 @@
   <div class="project-page__inner" id="project-page-inner"></div>
 </div>
 
-<!-- Cinematic identity intro: an 800-frame Blender render (assets/intro/frames, extracted from
-     assets/intro/source.mkv) painted onto a canvas frame-by-frame from scroll position only,
-     replacing the old static About section entirely -- see js/intro-scroll.js. #about pins via
-     position:sticky while #intro-scroll-track scrolls underneath it, same mechanism as the hero's
-     own #hero-scroll-track. Three identity lines (name/role/school) emerge as scroll-synced
-     volumetric type only during the early clean-cloud portion of the footage (roughly frames
-     10-230); the footage's own baked "WHO I AM" reveal and everything after it plays completely
-     untouched, exactly as rendered. The track's own extra scroll distance now runs past the last
-     frame too -- see .intro-blackout below -- so the footage's own empty-sky ending bleeds into a
-     scroll-controlled blackout rather than cutting straight to #identity. -->
-<div class="intro-scroll-track" id="intro-scroll-track">
-<section id="about">
-  <div class="intro-bg" aria-hidden="true">
-    <canvas id="intro-bg-canvas" class="intro-bg-canvas"></canvas>
-    <div class="intro-entry-veil" id="intro-entry-veil"></div>
-    <div class="intro-bg-overlay"></div>
-  </div>
-  <h2 class="sr-only">About</h2>
-  <div class="intro-titles" id="intro-titles">
-    <p class="intro-title intro-title--name">KAAN ACAR</p>
-    <p class="intro-title intro-title--role">Visual Communication Designer</p>
-    <p class="intro-title intro-title--school">Bahçeşehir University</p>
-  </div>
-  <!-- Pure black, scroll-driven (js/intro-scroll.js): stays transparent through the entire
-       800-frame scrub, then once the user scrolls past the last frame, opacity ramps 0->1 over
-       the track's own extra scroll distance -- blended over the footage's final empty-sky frame,
-       alpha-compositing a flat black over sky blue naturally sweeps through the same "deeper blue
-       -> almost black" progression a real sky-darkening grade would, with no extra color keyframing
-       needed. Holds at opacity:1 for a further stretch of scroll (still the same pinned #about,
-       nothing new mounts yet) before the section releases into #identity below. -->
-  <div class="intro-blackout" id="intro-blackout" aria-hidden="true"></div>
-</section>
-</div>
-
-<!-- Cinematic identity scene: continues directly out of the blackout above with zero hand-off cut
-     (#identity opens already pure black, matching the blackout's held end-state exactly). Pins the
-     same way #hero/#about do. See js/scenes.js for the reveal engine: an ambient-blob background
+<!-- Cinematic identity scene: continues directly out of #work below it (#identity opens on its
+     own opaque #000 background, and #work's colored wash already fades out via
+     IntersectionObserver as it leaves the viewport -- see js/script.js -- so the hand-off is a
+     plain dark-to-dark cut, the same "no bridging needed" pattern already used between
+     #availability and #contact). Pins the same way #hero does. See js/scenes.js for the reveal
+     engine: an ambient-blob background
      (section-scoped reuse of the site-wide mechanism, same precedent as #hero-prism) fades in
      first, then the name and each fact -- split into words, each word its own tiny scroll-driven
      cascade (a vanilla-CSS take on React Bits' Split Text) -- stagger-build top to bottom as one

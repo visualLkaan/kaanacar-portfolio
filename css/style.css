@@ -284,7 +284,7 @@ header.frame-away{ top:0; }
   --ft-radius:182px;
   --ft-arc:168deg;
   --ft-start:calc(var(--ft-arc) / -2);
-  --ft-step:calc(var(--ft-arc) / 6);
+  --ft-step:calc(var(--ft-arc) / 5);
   position:absolute; top:50%; left:18px;
   width:0; height:0;
   z-index:1;
@@ -825,137 +825,20 @@ section{ padding:130px 0 60px; }
   .supporting-grid{ grid-template-columns:1fr 1fr; }
 }
 
-/* ---------- INTRO (about replacement) ---------- */
-/* Cinematic identity sequence -- the hero background's sibling: a frame sequence painted to
-   canvas, scrubbed by scroll position via a sticky-pinned section inside a taller scroll track.
-   See js/intro-scroll.js for the loader/scrub/title-timeline logic; #hero-scroll-track /
-   #hero-bg-canvas above is the pattern this is modeled on. The one real difference: at 800
-   frames this can't preload everything up front like the hero's 126 do, so the JS module keeps a
-   small sliding window of frames loaded/decoded and evicts the rest -- nothing here needs to know
-   that, it only ever sees whatever frame is currently drawn. */
-/* 4200px plays the 800-frame sequence itself; the darken-to-black ramp is overlapped with the
-   scrub's own last 45% (see DARKEN_START_T in js/intro-scroll.js) rather than needing scroll
-   distance of its own, so the only extra distance here is a short 80px held-black beat before
-   #identity begins -- deliberately tiny, not a pause -- kept in the same track/pin as the
-   frame-scrub so the whole sky-to-black moment never has its own pin/unpin boundary. SCROLL_RANGE
-   must match js/intro-scroll.js. */
-.intro-scroll-track{
-  position:relative;
-  height:calc(100svh + 4200px + 80px);
-}
-@media (prefers-reduced-motion: reduce){
-  .intro-scroll-track{ height:100svh; }
-}
-
-#about{
-  min-height:100svh;
-  position:sticky; top:0;
-  display:flex; align-items:center; justify-content:center;
-  overflow:hidden;
-}
-
-.intro-bg{ position:absolute; inset:0; z-index:-2; overflow:hidden; pointer-events:none; }
-.intro-bg-canvas{ width:100%; height:100%; display:block; }
-
-/* Entry veil: bridges the Work section's flat --ink background into the footage's own bright
-   opening frames (white cloud/blue sky) so the cut from "dark cinematic canvas" to "bright
-   render" doesn't read as a page boundary. Reuses --ink + --hero-indigo -- the same ambient hue
-   the hero's own background blobs use -- rather than a plain black scrim, so the darkness feels
-   like the hero's own ambient light lingering rather than a new effect. Opacity is written per
-   scroll frame by js/intro-scroll.js (fully opaque at the very first frame, eased to 0 within the
-   footage's first ~8%), the same "no transition, direct per-frame value" approach the volumetric
-   titles already use -- never touches the render itself, only sits above it. */
-.intro-entry-veil{
-  position:absolute; inset:0;
-  background:
-    radial-gradient(ellipse at center, rgba(46,30,99,0.4) 0%, rgba(16,16,20,0.94) 75%);
-  opacity:1;
-}
-@media (prefers-reduced-motion: reduce){
-  .intro-entry-veil{ display:none; }
-}
-
-.intro-bg-overlay{
-  position:absolute; inset:0;
-  background:
-    linear-gradient(rgba(0,0,0,0.1), rgba(0,0,0,0.1)),
-    radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.4) 100%);
-}
-
-/* Post-footage blackout: deliberately literal #000 (not --ink) -- the one place on this site pure
-   black is the intended target rather than the theater canvas's near-black, since the brief for
-   this beat is specifically "pull the sky into pure black," a one-off cinematic value the same way
-   the loader/hero treat their own signature moments as exceptions, not a new reusable token.
-   z-index:2 puts it above the titles (already long gone by the time this opacity moves -- the
-   titles' own window closes at frame 230, this starts at frame 800) so it can fully cover the
-   section regardless. Opacity is written per scroll frame by js/intro-scroll.js -- 0 through the
-   entire 800-frame scrub, eased to 1 over the track's own extra scroll distance, then held. */
-.intro-blackout{
-  position:absolute; inset:0;
-  z-index:2;
-  background:#000;
-  opacity:0;
-  pointer-events:none;
-}
-@media (prefers-reduced-motion: reduce){
-  .intro-blackout{ display:none; }
-}
-
-/* sr-only: the section's only heading now that the visible ".section-head" numeral/rule chrome is
-   gone (this section behaves like a second cinematic set-piece, same as #hero, not a standard
-   content section) -- keeps it identifiable to screen-reader/landmark navigation without adding
-   visible chrome that would compete with the volumetric titles below. */
+/* sr-only: visually hidden but accessible heading utility for the pinned cinematic sections below
+   that have no visible ".section-head" numeral/rule chrome (#identity, #about-me, #skills,
+   #availability) -- keeps each one identifiable to screen-reader/landmark navigation without
+   adding visible chrome that would compete with their own content. */
 .sr-only{
   position:absolute; width:1px; height:1px; padding:0; margin:-1px;
   overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
 }
 
-/* Volumetric identity titles: three lines (name/role/school), each visible only inside its own
-   scroll window during the footage's early clean-cloud passage. Values are written directly per
-   scroll frame by js/intro-scroll.js (no transition property here) so the emerge/hold/pass-through
-   motion stays exactly frame-accurate in both scroll directions, the same "no transition, direct
-   per-frame write" approach the hero's own content-fade already uses. perspective:1600px reuses
-   the exact value .hero-name already establishes, rather than inventing a new one. */
-.intro-titles{
-  position:absolute; inset:0;
-  display:flex; align-items:center; justify-content:center;
-  perspective:1600px;
-  pointer-events:none;
-  z-index:1;
-}
-.intro-title{
-  position:absolute;
-  opacity:0;
-  filter:blur(20px);
-  text-align:center;
-  text-shadow:0 1px 0 rgba(10,6,30,0.5), 0 10px 28px rgba(36,20,90,0.32);
-  white-space:nowrap;
-}
-.intro-title--name{
-  font-family:var(--poster);
-  font-weight:400;
-  letter-spacing:0.01em;
-  color:var(--paper);
-  font-size:clamp(3rem, 9vw, 7.5rem);
-}
-.intro-title--role,
-.intro-title--school{
-  font-family:var(--display);
-  font-style:italic;
-  font-weight:300;
-  color:var(--paper);
-}
-.intro-title--role{ font-size:clamp(1.6rem, 3.4vw, 2.6rem); }
-.intro-title--school{ font-size:clamp(1.3rem, 2.6vw, 2.1rem); }
-
-@media (prefers-reduced-motion: reduce){
-  .intro-title{ opacity:1; filter:none; transform:none; position:relative; }
-  .intro-titles{ flex-direction:column; gap:18px; }
-}
-
-/* ---------- IDENTITY (post-blackout cinematic scene: name + facts only) ---------- */
-/* Opens already pure black (matching .intro-blackout's held end-state, so the hand-off from
-   #about's own track has no visible seam). See js/scenes.js for the reveal engine: the ambient bg
+/* ---------- IDENTITY (cinematic scene: name + facts only) ---------- */
+/* Opens on its own opaque #000 -- #work's colored wash already fades out via IntersectionObserver
+   as it leaves the viewport (see js/script.js), so the hand-off from #work is a plain dark-to-dark
+   cut with no bridging needed, the same pattern already used between #availability and #contact.
+   See js/scenes.js for the reveal engine: the ambient bg
    fades in, then the name and each fact stagger-build top to bottom, holds fully assembled for a
    stretch of scroll, then the whole .identity-content container fades/lifts out together as one
    unit before #about-me begins. Now carries only 5 lines (name + 4 facts) -- the About Me passage
@@ -1023,8 +906,8 @@ section{ padding:130px 0 60px; }
 /* Content column: opacity stays 1 by default (js/scenes.js only writes to it for the group-exit
    fade, which starts at 1 and only moves once the scene's own scroll reaches its exit phase) so a
    visitor whose JS fails to load for any reason still sees the section, not permanent blackness.
-   Individual lines/words below default to opacity:0 -- same accepted tradeoff .intro-title already
-   makes -- reduced-motion visitors get the guaranteed-visible fallback via the media query below. */
+   Individual lines/words below default to opacity:0 -- an accepted tradeoff --
+   reduced-motion visitors get the guaranteed-visible fallback via the media query below. */
 .identity-content{
   position:relative; z-index:1;
   width:100%; max-width:1320px;

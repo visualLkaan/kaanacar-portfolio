@@ -6,19 +6,18 @@
 // navigation -- a custom rAF smooth-scroll on the site's own signature-ease curve, landing inside
 // each destination scene's own "hold" window rather than at a scroll-track's raw top.
 //
-// Why a custom scroll instead of a plain `href="#id"` jump: five of the seven destinations (#about,
-// #identity, #about-me, #skills, #availability) are scroll-scrubbed, sticky-pinned scenes
-// (js/intro-scroll.js, js/scenes.js) whose content is only fully built/visible partway through
-// their own track's scroll range. A bare anchor jump lands at the track's top -- frame 0 of the
-// Blender scrub, or every line of a scene still at opacity:0 -- which would make Fast Travel feel
-// broken rather than premium.
+// Why a custom scroll instead of a plain `href="#id"` jump: four of the six destinations
+// (#identity, #about-me, #skills, #availability) are scroll-scrubbed, sticky-pinned scenes
+// (js/scenes.js) whose content is only fully built/visible partway through their own track's
+// scroll range. A bare anchor jump lands at the track's top -- every line of a scene still at
+// opacity:0 -- which would make Fast Travel feel broken rather than premium.
 // TRACK_TARGETS below encodes, per destination, roughly where in that track's own progress (0-1)
 // the content is fully assembled and still comfortably before its own exit phase begins -- computed
-// from the exact range/exitStart/stagger constants already in js/intro-scroll.js and js/scenes.js
-// (kept as plain literals here, same as those two files already keep their own range numbers in
-// manual lockstep with each other's CSS track heights -- an established pattern in this codebase,
-// not a new fragility). #work and #contact are plain, unpinned sections, so they just get a normal
-// "scroll its top into view" target.
+// from the exact range/exitStart/stagger constants already in js/scenes.js (kept as plain literals
+// here, same as that file already keeps its own range numbers in manual lockstep with its CSS
+// track heights -- an established pattern in this codebase, not a new fragility). #work and
+// #contact are plain, unpinned sections, so they just get a normal "scroll its top into view"
+// target.
 //
 // Reduced motion: the wheel's own open/close motion is pure CSS transitions, already zeroed by the
 // sitewide `*{ transition:none !important }` rule (css/style.css, end of file) -- nothing to do
@@ -62,13 +61,8 @@ export function initFastTravel() {
 
   function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
 
-  // Per-destination landing point inside its own track's progress (0-1) -- see js/scenes.js /
-  // js/intro-scroll.js for where these ranges and phases come from.
-  //   #about (intro-scroll-track, range 4200): t=0, i.e. the very top of the track -- "Who I Am"
-  //     resets the Blender sequence to frame 0, the exact state a first-time visitor lands on
-  //     (frame 0 drawn, titles hidden, entry veil fully opaque), never into the middle of the
-  //     timeline, per explicit direction that this destination means "start over," not "jump to
-  //     a specific moment."
+  // Per-destination landing point inside its own track's progress (0-1) -- see js/scenes.js
+  // for where these ranges and phases come from.
   //   #identity (range 1972, exitStart 0.688): name + 4 facts, 5 lines, the last finishing its
   //     build at t~0.645 -- a narrow 0.043-wide hold before exitStart (this scene's hold was
   //     deliberately cut very short, see js/scenes.js's own comment on it). t=0.66 sits inside that
@@ -83,7 +77,6 @@ export function initFastTravel() {
   //   #skills (range 2226, exitStart 0.673): 7 lines finishing at t~0.618 -- t=0.64.
   //   #availability (range 1338, exitStart 0.581): 4 lines finishing at t~0.515 -- t=0.54.
   var TRACK_TARGETS = {
-    '#about': { trackId: 'intro-scroll-track', range: 4200, t: 0 },
     '#identity': { trackId: 'identity-scroll-track', range: 1972, t: 0.66 },
     '#about-me': { trackId: 'about-me-scroll-track', range: 2151, t: 0.54 },
     '#skills': { trackId: 'skills-scroll-track', range: 2226, t: 0.64 },

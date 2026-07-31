@@ -1,19 +1,18 @@
 // ---- Cinematic post-blackout scenes: identity, about me, software & skills, availability ----
-// Continues directly out of js/intro-scroll.js's blackout (matching black, so the hand-off has no
-// visible cut). Architecturally each scene is the same pattern as the hero/#about sections above
-// it -- a taller scroll track, a sticky-pinned section inside it -- plus one phase specific to this
+// Continues directly out of #work (both dark, no bridging needed -- see index.html's #identity
+// comment). Architecturally each scene is the same pattern as the hero section above it -- a
+// taller scroll track, a sticky-pinned section inside it -- plus one phase specific to this
 // content: every line stagger-builds in (word by word, a vanilla-CSS take on React Bits' Split Text
 // -- https://reactbits.dev/text-animations/split-text), holds fully assembled long enough to read,
 // then the whole content group fades/lifts out together as one unit before the next scene's own
 // build begins. That's what makes #identity -> #about-me -> #skills -> #availability read as one
 // continuous scene rather than four stacked sections. Nothing here is a CSS transition or a timer
 // -- every value is a pure function of its own track's scroll position, so it reverses exactly on
-// scroll-up, same discipline as js/intro-scroll.js's titles.
+// scroll-up.
 //
 // Reduced motion: this whole module is a no-op (see the early return below). Every track collapses
 // to 100svh and every line/word defaults to fully visible via css/style.css's own
-// `@media (prefers-reduced-motion: reduce)` rules, matching how the hero/identity-intro scenes
-// already opt out.
+// `@media (prefers-reduced-motion: reduce)` rules, matching how the hero scene already opts out.
 
 export function initScenes() {
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

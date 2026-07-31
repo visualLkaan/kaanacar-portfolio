@@ -124,14 +124,13 @@ rarely that it stays meaningful.
   typography, borders, or any foreground UI element.
 - **Pure black (`#000`):** a deliberate exception to the surface being
   near-black rather than true black, scoped to one continuous cinematic
-  passage: the scroll-controlled blackout that closes the identity intro's
-  footage (`.intro-blackout`), and the five scenes that build out of it
-  (`#identity`, `#about-me`, `#skills`, `#availability`, `#contact`) — all
-  sharing the exact same black so the whole passage reads as one
-  uninterrupted surface, never a cut, all the way to the page's last pixel.
-  `--ink` remains the surface color for the one true standard content
-  section left (`#work`); this exception doesn't extend there. There is no
-  separate `<footer>` anymore — `#contact` is the page's final element.
+  passage: the five sections that follow `#work` directly (`#identity`,
+  `#about-me`, `#skills`, `#availability`, `#contact`) — all sharing the
+  exact same black so the whole passage reads as one uninterrupted surface,
+  never a cut, all the way to the page's last pixel. `--ink` remains the
+  surface color for the one true standard content section left (`#work`);
+  this exception doesn't extend there. There is no separate `<footer>`
+  anymore — `#contact` is the page's final element.
 
 ## Typography
 
@@ -232,25 +231,21 @@ Guidance:
   filter/box-shadow subtly, never lifts with a shadow.
 - **Section numeral / index label:** mono, `primary` color, precedes every
   section heading — the site's recurring "frame counter" motif. `#work` (`01`)
-  is now the *only* section that still has one. The cinematic identity intro
-  (`#about`) and the five scenes from there through the end of the page
-  (`#identity`, `#about-me`, `#skills`, `#availability`, `#contact`) are all
-  deliberate exceptions: none has a visible section head, same as the hero —
-  full-bleed cinematic set-pieces, not standard content sections. `#contact`
-  used to carry `02`/`03` numeral chrome of its own before its redesign into
-  the closing Flowing Menu scene; don't reintroduce a numeral there without
-  updating this line.
-- **Scroll-controlled scene transition:** the identity intro's footage ends on
-  an empty sky, and rather than cutting to the next section, continued scroll
-  pulls a full-bleed pure-black overlay (`.intro-blackout`) from transparent
-  to opaque — overlapped with the last ~30% of the frame-scrub itself (well
-  past the footage's own baked reveal) rather than as a separate stage after
-  it, so the darken reads as earlier and needs no scroll distance of its own
-  — still inside `#about`'s own pin, so there's no pin/unpin boundary
-  mid-transition — holds briefly at fully black (one short, deliberately
-  brief beat, not a long pause), then hands off to `#identity`, which opens
-  already black. Every stage is a direct, reversible function of scroll
-  position, no timers, same discipline as the volumetric titles below.
+  is now the *only* section that still has one. The five scenes that follow it
+  through the end of the page (`#identity`, `#about-me`, `#skills`,
+  `#availability`, `#contact`) are all deliberate exceptions: none has a
+  visible section head, same as the hero — full-bleed cinematic set-pieces,
+  not standard content sections. `#contact` used to carry `02`/`03` numeral
+  chrome of its own before its redesign into the closing Flowing Menu scene;
+  don't reintroduce a numeral there without updating this line.
+- **Direct dark-to-dark scene hand-off:** `#work`'s colored background wash
+  fades out via `IntersectionObserver` as it leaves the viewport (see
+  `js/script.js`), and `#identity` opens on its own opaque `#000` right after
+  it — no bridging transition needed between them, the same "no bridging
+  needed" pattern already used between `#availability` and `#contact`. Don't
+  reintroduce a scroll-controlled crossfade/blackout between two
+  already-dark sections; it was only ever needed to bridge the identity
+  intro's bright footage into black, and that footage no longer exists here.
 - **Stagger-build + group-exit scene** (`#identity`, `#about-me`, `#skills`,
   `#availability`, see `js/scenes.js`): the pattern these four scenes share.
   Each line of content (a heading, a fact, a sentence, a card) has its own
@@ -370,23 +365,19 @@ Guidance:
     Flowing Menu's marquee gradients (see their own bullets). No card, panel, or box ever appears
     behind an item — just the trigger's own dot motif repeated smaller per item, and plain Geist
     labels directly on the canvas.
-  - Each destination auto-maps to an existing section (My Projects → `#work`, Who I Am → `#about`
-    — the identity intro's own baked "WHO I AM" reveal — Identity → `#identity` — name + the
-    Age/Education/Degree/Current Status facts only, a deliberately separate destination from About
-    Me's own prose scene right after it — About Me → `#about-me`, Software & Skills → `#skills`,
-    Open For → `#availability`, Social Media → `#contact`, whose Flowing Menu already carries the
-    real LinkedIn URL). Selecting one runs a custom scroll on the site's own `signature-ease`, not
-    the browser default — and, for the four destinations that land inside a scroll-scrubbed
-    sticky-pinned *scene* (`#identity`/`#about-me`/`#skills`/`#availability`, all built by
-    `js/scenes.js`), lands partway into that scene's own track, inside its "hold" window (after
-    every line has built in, before its group-exit begins) rather than at the track's raw top, which
-    would otherwise show a scene still at opacity:0. `#about` is the deliberate exception: "Who I
-    Am" always resets to that track's literal top (frame 0 of the Blender scrub, entry veil fully
-    opaque) rather than landing mid-sequence — chosen specifically so this destination re-plays the
-    same opening a first-time visitor sees, not a jump into the timeline. These landing points are
-    plain literals in `js/fast-travel.js`, kept in manual lockstep with `js/scenes.js`/
-    `js/intro-scroll.js`'s own range/exitStart constants — the same kind of manual lockstep those two
-    files already keep with their CSS track heights, not a new fragility.
+  - Each destination auto-maps to an existing section (My Projects → `#work`, Identity →
+    `#identity` — name + the Age/Education/Degree/Current Status facts only, a deliberately
+    separate destination from About Me's own prose scene right after it — About Me → `#about-me`,
+    Software & Skills → `#skills`, Open For → `#availability`, Social Media → `#contact`, whose
+    Flowing Menu already carries the real LinkedIn URL). Selecting one runs a custom scroll on the
+    site's own `signature-ease`, not the browser default — and, for the four destinations that land
+    inside a scroll-scrubbed sticky-pinned *scene* (`#identity`/`#about-me`/`#skills`/
+    `#availability`, all built by `js/scenes.js`), lands partway into that scene's own track, inside
+    its "hold" window (after every line has built in, before its group-exit begins) rather than at
+    the track's raw top, which would otherwise show a scene still at opacity:0. These landing points
+    are plain literals in `js/fast-travel.js`, kept in manual lockstep with `js/scenes.js`'s own
+    range/exitStart constants — the same kind of manual lockstep that file already keeps with its
+    CSS track heights, not a new fragility.
   - **Hover forgiveness**: `.fast-travel__hit-zone`, a large invisible circle centered on the exact
     same anchor point the items themselves radiate from (so it inherently spans the trigger and every
     item's own reach, with no dead space between), is the primary fix for "the wheel closes while
@@ -397,19 +388,6 @@ Guidance:
     closed. A 300ms close-delay debounce (`CLOSE_DELAY` in `js/fast-travel.js`) sits behind that as a
     second line of defense for whatever the geometry doesn't catch (an overshoot past the circle, a
     fast diagonal flick) — belt-and-suspenders, not either/or.
-- **Volumetric scroll title:** a three-phase emerge → hold → pass-through
-  treatment for type that needs to read as physically present in a scrubbed
-  scene, not pasted over it — used for the identity intro's name/role/school
-  lines. Driven directly by scroll position every frame (no CSS transitions,
-  so it reverses exactly on scroll-up): blur 20px→0 and a slight upward
-  settle on entry, a brief near-static hold at full clarity, then blur
-  0→16px with scale continuing past 1 as it exits, selling "the camera
-  passed through it" rather than a flat fade. Reuses existing values rather
-  than inventing new ones — the same `perspective(1600px)` and ~6°
-  `rotateX` settle the hero name already uses. Scoped to one use so far;
-  don't reach for it as a generic reveal-on-scroll utility (`.reveal` still
-  owns that job) — it's specifically for type meant to feel embedded in a
-  moving scene.
 - **Shiny text:** the gradient-fill/specular-sweep treatment on `.hero-name`,
   factored into a standalone `.shiny-text` class so it can be reused rather
   than redefined. Exactly two uses on the whole site — the Hero name and the
