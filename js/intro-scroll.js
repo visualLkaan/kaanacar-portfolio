@@ -7,17 +7,18 @@
 // an option, so this keeps only a sliding window of frames decoded/resident at once and evicts the
 // rest as the scroll position moves on.
 //
-// Also drives the two scroll-controlled beats that continue directly out of the footage's own
-// ending: the post-footage blackout (.intro-blackout, still inside #about's own track/pin -- see
-// applyBlackout) and the #reveal section's own background/content build (a separate track/pin
-// right after, see applyReveal). Both are pure functions of scroll position, same as the titles.
+// Also drives the post-footage blackout (.intro-blackout, still inside #about's own track/pin --
+// see applyBlackout): the footage ends on an empty sky, and rather than cutting to the next
+// section, continued scroll ramps a pure-black overlay in. What happens after the blackout (the
+// identity/about, skills, and availability scenes) lives in js/scenes.js -- a separate module,
+// since that content has nothing to do with the Blender footage or its frame-loading concerns.
 //
 // Reduced motion: draws frame 1 once, statically, and leaves the three title elements alone --
 // their reduced-motion "always visible, no animation" state is pure CSS (see .intro-title under
 // `@media (prefers-reduced-motion: reduce)` in css/style.css), so there's nothing for this module
-// to do beyond painting one still frame. The blackout and #reveal tracks collapse the same way
-// (see their own `@media (prefers-reduced-motion: reduce)` rules) so none of this module's extra
-// scroll-scrub logic below ever runs for a reduced-motion visitor either.
+// to do beyond painting one still frame. The blackout track collapses the same way (see its own
+// `@media (prefers-reduced-motion: reduce)` rule) so that extra scroll-scrub logic never runs for
+// a reduced-motion visitor either.
 
 export function initIntro() {
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -26,9 +27,6 @@ export function initIntro() {
   var canvas = document.getElementById('intro-bg-canvas');
   var veilEl = document.getElementById('intro-entry-veil');
   var blackoutEl = document.getElementById('intro-blackout');
-  var revealTrack = document.getElementById('reveal-scroll-track');
-  var revealBgEl = document.getElementById('reveal-bg');
-  var revealContentEl = document.getElementById('reveal-content');
   if (!track || !canvas) return;
 
   var ctx = canvas.getContext('2d');
@@ -36,7 +34,11 @@ export function initIntro() {
   ctx.imageSmoothingQuality = 'high';
 
   var FRAMES_BASE = 'assets/intro/frames/';
-  var SCROLL_RANGE = 6400; // px of scroll to play through the full sequence -- matches the CSS track
+  var SCROLL_RANGE = 4200; // px of scroll to play through the full sequence -- matches the CSS track.
+                            // Tightened from an earlier 6400px pass (this is the single largest
+                            // contributor to the whole page's scroll length, so it's the first lever
+                            // for "too much scrolling") -- still ~5px/frame at 800 frames, plenty of
+                            // scrub resolution given LERP already smooths it.
   var EAGER_COUNT = 30;    // frames loaded immediately, before any scroll -- covers the opening beat
   var WINDOW_RADIUS = 90;  // frames kept loaded on each side of the current index (~180 resident of 800)
   var EVICT_MARGIN = 30;   // extra slack beyond the window before evicting, so hovering right at the
@@ -46,16 +48,17 @@ export function initIntro() {
   var LERP = 0.4;          // scroll->frame smoothing: intentionally light (vs. the hero's 0.09) so
                             // this reads as "you are scrubbing," not the hero's slow cinematic settle
   var VEIL_FADE_FRACTION = 0.08; // fraction of the sequence over which the entry veil (see below) clears
-  var DARKEN_RANGE = 1000; // px of scroll, past the last frame, over which the blackout ramps 0->1.
-                            // .intro-scroll-track's own CSS height has a further 500px past this
-                            // baked in as pure scroll distance (the cinematic hold) -- nothing here
-                            // needs to compute with that number, darkenTargetT is already clamped
-                            // at 1 for the whole of it, so it's just extra track height in the CSS.
-  var REVEAL_RANGE = 1800; // px of scroll for #reveal's own bg-then-content build, matches its CSS track
-  var REVEAL_BG_END = 0.45;       // fraction of REVEAL_RANGE by which the ambient bg is fully in
-  var REVEAL_CONTENT_START = 0.35; // fraction of REVEAL_RANGE where content starts fading in --
-                                     // overlaps the bg's own tail rather than waiting for it to fully
-                                     // finish, so the two beats cascade instead of stepping
+  var DARKEN_START_T = 0.55; // fraction of the frame-scrub's own progress (targetT, 0-1) at which
+                             // the sky starts pulling to black -- pulled earlier again from an
+                             // initial 0.7 pass per feedback that it still waited too long. Starts
+                             // overlapped with the scrub's last 45% (still well past the footage's
+                             // own baked reveal, done by frame ~230/800) rather than waiting for the
+                             // scrub to fully finish, so the darken reads as earlier and needs zero
+                             // extra scroll distance of its own: it reaches fully black exactly as
+                             // targetT hits 1. .intro-scroll-track's CSS height still carries a
+                             // short ~80px past that as a brief held-black beat before #identity
+                             // begins -- deliberately tiny, not a pause, per "do not leave the user
+                             // on an empty black screen for a long time."
 
   // Three identity lines, each visible only inside its own frame window during the footage's early
   // clean-cloud passage (frames roughly 10-230 -- verified against the actual rendered footage, not
@@ -79,7 +82,6 @@ export function initIntro() {
   var lastQueuedIndex = -1;
   var curT = 0, targetT = 0;
   var darkenCurT = 0, darkenTargetT = 0;
-  var revealCurT = 0, revealTargetT = 0;
 
   function frameUrl(i) {
     var n = String(i + 1);
@@ -275,28 +277,6 @@ export function initIntro() {
     blackoutEl.style.opacity = t.toFixed(3);
   }
 
-  // #reveal's own build: background (opacity/scale/blur) fades in first, content (opacity/
-  // translateY) starts once the background is already meaningfully underway -- both eased and both
-  // pure functions of this track's own scroll position, same pattern as applyTitle/applyVeil above.
-  function applyReveal(t) {
-    if (revealBgEl) {
-      var bgP = Math.min(Math.max(t / REVEAL_BG_END, 0), 1);
-      var eBg = easeOutCubic(bgP);
-      revealBgEl.style.opacity = eBg.toFixed(3);
-      var scale = lerp(0.92, 1, eBg);
-      var blur = lerp(10, 0, eBg);
-      revealBgEl.style.transform = 'scale(' + scale.toFixed(4) + ')';
-      revealBgEl.style.filter = blur > 0.01 ? 'blur(' + blur.toFixed(2) + 'px)' : 'none';
-    }
-    if (revealContentEl) {
-      var cP = Math.min(Math.max((t - REVEAL_CONTENT_START) / (1 - REVEAL_CONTENT_START), 0), 1);
-      var eContent = easeOutCubic(cP);
-      revealContentEl.style.opacity = eContent.toFixed(3);
-      var ty = lerp(28, 0, eContent);
-      revealContentEl.style.transform = 'translateY(' + ty.toFixed(2) + 'px)';
-    }
-  }
-
   fetch(FRAMES_BASE + 'manifest.json').then(function (r) { return r.json(); }).then(function (manifest) {
     frameCount = manifest.count;
     nativeW = manifest.width;
@@ -325,24 +305,13 @@ export function initIntro() {
       var trackTop = track.getBoundingClientRect().top + window.scrollY;
       var rawPx = window.scrollY - trackTop;
       targetT = Math.min(Math.max(rawPx / SCROLL_RANGE, 0), 1);
-      // starts rising only once rawPx passes the frame-scrub's own range, i.e. only after the
-      // footage has been scrubbed all the way to its last frame -- see applyBlackout
-      darkenTargetT = Math.min(Math.max((rawPx - SCROLL_RANGE) / DARKEN_RANGE, 0), 1);
+      // rises across the scrub's own last (1 - DARKEN_START_T) fraction, reaching 1 exactly when
+      // targetT does -- no separate post-scrub distance needed, see applyBlackout
+      darkenTargetT = Math.min(Math.max((targetT - DARKEN_START_T) / (1 - DARKEN_START_T), 0), 1);
     }
     window.addEventListener('scroll', updateTarget, { passive: true });
     window.addEventListener('resize', updateTarget);
     updateTarget();
-
-    function updateRevealTarget() {
-      if (!revealTrack) return;
-      var top = revealTrack.getBoundingClientRect().top + window.scrollY;
-      revealTargetT = Math.min(Math.max((window.scrollY - top) / REVEAL_RANGE, 0), 1);
-    }
-    if (revealTrack) {
-      window.addEventListener('scroll', updateRevealTarget, { passive: true });
-      window.addEventListener('resize', updateRevealTarget);
-      updateRevealTarget();
-    }
 
     function loop() {
       var prevT = curT;
@@ -360,9 +329,6 @@ export function initIntro() {
 
       darkenCurT += (darkenTargetT - darkenCurT) * LERP;
       applyBlackout(darkenCurT);
-
-      revealCurT += (revealTargetT - revealCurT) * LERP;
-      applyReveal(revealCurT);
 
       if (idx !== lastQueuedIndex) {
         refillQueue(idx, dir);

@@ -183,9 +183,13 @@ a:focus-visible, button:focus-visible, .carousel-card:focus-visible, .gallery-it
    hero/header's own CSS opacity fades as one continuous cross-dissolve -- no CSS keyframe here */
 
 /* ---------- NAV ---------- */
+/* Fast Travel (below) is the site's only navigation now -- the header used to also carry a
+   Work/About/Contact link list (`nav ul`/`nav a`/`nav a::after`), removed deliberately along with
+   its markup rather than left as dead, unreferenced CSS. Only the logo remains, a plain scroll-to-
+   top link. */
 header{
   position:fixed; top:var(--frame-h); left:0; right:0; z-index:50;
-  display:flex; align-items:center; justify-content:space-between;
+  display:flex; align-items:center;
   padding:20px var(--edge);
   opacity:0; transform:translateY(-8px);
   transition:opacity 0.6s ease, transform 0.6s ease, top 0.7s cubic-bezier(.76,0,.24,1);
@@ -198,16 +202,152 @@ header.frame-away{ top:0; }
   width:38px; height:38px;
   display:flex; align-items:center; justify-content:center;
 }
-nav ul{
-  list-style:none; display:flex; gap:32px;
-  font-family:var(--geist); font-weight:500; font-size:0.85rem; letter-spacing:0.01em;
+
+/* ---------- FAST TRAVEL ---------- */
+/* The site's only navigation now -- the header nav above was removed entirely, not just
+   supplemented. Fixed at the viewport's left-center, shown/hidden in lockstep with #site-header
+   (see js/script.js's three `header.classList.add('show')` call sites). A vanilla-CSS/JS take on
+   React Bits' Option Wheel (https://reactbits.dev/components/option-wheel), reimplemented rather
+   than pulled in -- same "port the effect, don't import the library" convention as this project's
+   other React Bits references (Split Text, Shiny Text, Side Rays, Flowing Menu). Two deliberate
+   departures from the source, both because the trigger lives at the left edge rather than in open
+   space: items fan across a right-opening arc instead of a full 360deg ring (a full ring would
+   clip off the left edge of the viewport), and "premium" is built from this site's own vocabulary
+   rather than glass/blur/drop-shadow -- DESIGN.md's elevation rule keeps depth tonal, not
+   additive, so depth here comes from one restrained ambient glow (the same scoped, blurred,
+   low-opacity, existing-accent-only exception already granted to the skill ring / about-me rays /
+   flow-menu marquee -- see DESIGN.md Components) instead of a card shadow or a translucent panel.
+   Motion is entirely CSS transitions on `.open`, so the sitewide reduced-motion rule that zeroes
+   every transition (see the bottom of this file) already makes this instant/no-op for that
+   visitor -- no extra reduced-motion code needed here, only in js/fast-travel.js's own scroll. */
+.fast-travel{
+  position:fixed; left:var(--edge); top:50%;
+  transform:translateY(-50%);
+  z-index:56;
+  opacity:0; pointer-events:none;
+  transition:opacity 0.6s ease, transform 0.6s ease;
 }
-nav a{ position:relative; padding-bottom:3px; }
-nav a::after{
-  content:''; position:absolute; left:0; bottom:0; width:0; height:1px;
+.fast-travel.show{ opacity:1; pointer-events:auto; }
+
+/* Padding grows the button's own hoverable/clickable box (a plain <button> hit-tests its whole
+   border-box, padding included); the matching negative margin cancels that growth back out of the
+   surrounding layout, so the visible dot+label sit exactly where they did before -- a bigger
+   "invisible hover zone around the trigger" without nudging anything on screen. */
+.fast-travel__trigger{
+  position:relative; z-index:2;
+  display:flex; align-items:center; gap:10px;
+  background:none; border:none;
+  padding:20px 16px; margin:-12px -12px;
+  font-family:var(--geist); font-weight:500; font-size:0.85rem; letter-spacing:0.01em;
+  color:var(--paper); cursor:pointer;
+}
+.fast-travel__dot{
+  width:8px; height:8px; border-radius:50%;
+  background:var(--accent);
+  transition:transform 0.3s cubic-bezier(.76,0,.24,1), box-shadow 0.3s cubic-bezier(.76,0,.24,1);
+}
+.fast-travel__trigger:hover .fast-travel__dot,
+.fast-travel.open .fast-travel__dot{
+  transform:scale(1.35);
+  box-shadow:0 0 14px 2px rgba(43,78,255,0.45);
+}
+.fast-travel__label{ position:relative; }
+.fast-travel__label::after{
+  content:''; position:absolute; left:0; bottom:-3px; width:0; height:1px;
   background:var(--paper); transition:width 0.3s ease;
 }
-nav a:hover::after{ width:100%; }
+.fast-travel__trigger:hover .fast-travel__label::after,
+.fast-travel.open .fast-travel__label::after{ width:100%; }
+
+/* The one deliberate "premium" glow -- blurred, low-opacity, --accent only, invisible until open.
+   Sits behind the wheel (z-index:0 vs. the wheel's own 1), never behind the trigger's plain label
+   so the closed, default state stays exactly as minimal as the brief asks. */
+.fast-travel__glow{
+  position:absolute; top:50%; left:40px;
+  width:300px; height:300px;
+  transform:translate(0,-50%) scale(0.6);
+  border-radius:50%;
+  background:radial-gradient(circle, rgba(43,78,255,0.55) 0%, transparent 70%);
+  filter:blur(64px);
+  opacity:0; pointer-events:none; z-index:0;
+  transition:opacity 0.6s cubic-bezier(.76,0,.24,1), transform 0.6s cubic-bezier(.76,0,.24,1);
+}
+.fast-travel.open .fast-travel__glow{ opacity:0.6; transform:translate(0,-50%) scale(1); }
+
+/* Wheel items sit on a circle of radius --ft-radius, spread evenly across --ft-arc degrees
+   (centered on due-right, i.e. angle 0 = straight out from the trigger) via the standard
+   rotate/translate/counter-rotate technique -- rotating each item to its slot, pushing it out
+   along the now-rotated axis, then rotating back so its own content stays upright. Only `scale`
+   and `opacity` are toggled between closed/open (radius and angle stay constant), so every browser
+   interpolates the same way regardless of how the custom properties resolve. */
+.fast-travel__wheel{
+  --ft-radius:182px;
+  --ft-arc:168deg;
+  --ft-start:calc(var(--ft-arc) / -2);
+  --ft-step:calc(var(--ft-arc) / 6);
+  position:absolute; top:50%; left:18px;
+  width:0; height:0;
+  z-index:1;
+  pointer-events:auto;
+}
+/* One large invisible circle, centered on the exact same anchor point the items themselves radiate
+   from, sized past the outermost item's own reach -- this is the "bridge" the trigger-to-wheel gap
+   needs: rather than relying only on the JS close delay to survive that empty space, there simply
+   is no empty space left to cross, geometrically. First child in the wheel's DOM (painted below the
+   `.fast-travel__item`s that follow it), so an item sitting on top of the circle still wins hit-
+   testing for its own exact pixels and stays independently clickable -- only the gaps between items
+   fall through to this layer. `pointer-events` only turns on once open, so it never shadows normal
+   page content underneath while the wheel is closed. */
+.fast-travel__hit-zone{
+  position:absolute; top:0; left:0;
+  width:calc((var(--ft-radius) + 130px) * 2);
+  height:calc((var(--ft-radius) + 130px) * 2);
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  pointer-events:none;
+}
+.fast-travel.open .fast-travel__hit-zone{ pointer-events:auto; }
+
+.fast-travel__item{
+  --angle:calc(var(--ft-start) + var(--i) * var(--ft-step));
+  position:absolute; top:0; left:0;
+  display:flex; align-items:center; gap:8px;
+  white-space:nowrap;
+  font-family:var(--geist); font-weight:500; font-size:0.78rem; letter-spacing:0.01em;
+  color:var(--paper);
+  padding:12px 16px;
+  transform:translate(-50%,-50%) rotate(var(--angle)) translateX(var(--ft-radius)) rotate(calc(var(--angle) * -1)) scale(0.4);
+  opacity:0;
+  pointer-events:none;
+  transition:transform 0.5s cubic-bezier(.76,0,.24,1), opacity 0.35s cubic-bezier(.76,0,.24,1);
+  transition-delay:0s;
+}
+.fast-travel.open .fast-travel__item{
+  transform:translate(-50%,-50%) rotate(var(--angle)) translateX(var(--ft-radius)) rotate(calc(var(--angle) * -1)) scale(1);
+  opacity:1;
+  pointer-events:auto;
+  transition-delay:calc(var(--i) * 0.045s);
+}
+.fast-travel__item-dot{
+  width:5px; height:5px; border-radius:50%;
+  background:var(--muted);
+  transition:background 0.3s ease, transform 0.3s ease;
+  flex:none;
+}
+.fast-travel__item:hover .fast-travel__item-dot,
+.fast-travel__item:focus-visible .fast-travel__item-dot{
+  background:var(--accent);
+  transform:scale(1.5);
+}
+.fast-travel__item:focus-visible{ outline:none; }
+.fast-travel__item:focus-visible .fast-travel__item-dot{ box-shadow:0 0 0 4px rgba(43,78,255,0.3); }
+
+@media (max-width:760px){
+  .fast-travel__wheel{ --ft-radius:134px; --ft-arc:195deg; left:16px; }
+  .fast-travel__trigger{ font-size:0.8rem; }
+  .fast-travel__item{ font-size:0.72rem; }
+  .fast-travel__glow{ width:240px; height:240px; }
+}
 
 /* ---------- HERO SCROLL TRACK ---------- */
 /* Scroll runway for the background video: #hero pins via position:sticky (below) while this
@@ -308,13 +448,21 @@ nav a:hover::after{ width:100%; }
 .hero-name .row{
   display:block;
   overflow:hidden;
-  /* Two stacked, comma-paired layers on one background-clip:text: a static vertical fill running
-     light-to-dark through the deep-violet family (the "lit from above" read that gives the glyphs
-     their pseudo-3D body) plus a slow specular band drifting across on its own timer -- a vanilla-
-     CSS take on React Bits' Shiny Text (https://reactbits.dev/text-animations/shiny-text): same
-     comma-b/spread/color-stop shape, ported from its background-position tween into a CSS
-     keyframe. No cursor reactivity here (unlike the design this replaces) -- deliberately calm and
-     time-driven only, muted by the sitewide prefers-reduced-motion rule (`*{ animation:none }`). */
+  will-change:transform;
+}
+
+/* Shiny text: two stacked, comma-paired layers on one background-clip:text -- a static vertical
+   fill running light-to-dark through the deep-violet family (the "lit from above" read that gives
+   the glyphs their pseudo-3D body) plus a slow specular band drifting across on its own timer -- a
+   vanilla-CSS take on React Bits' Shiny Text (https://reactbits.dev/text-animations/shiny-text):
+   same comma-b/spread/color-stop shape, ported from its background-position tween into a CSS
+   keyframe. No cursor reactivity here (unlike the design this replaces) -- deliberately calm and
+   time-driven only, muted by the sitewide prefers-reduced-motion rule (`*{ animation:none }`).
+   Extracted from `.hero-name .row` into this standalone, reusable class so the identity block's
+   "KAAN ACAR" (see #identity) can reuse the exact same treatment rather than duplicating it --
+   per DESIGN.md, this stays the only other use on the site; section headings elsewhere earn
+   hierarchy from type/spacing, not from adding a third shiny moment. */
+.shiny-text{
   background-image:
     linear-gradient(
       165deg,
@@ -346,10 +494,6 @@ nav a:hover::after{ width:100%; }
   0%{ background-position:0 0, 180% center; }
   60%{ background-position:0 0, -80% center; }
   100%{ background-position:0 0, -80% center; }
-}
-.hero-name .row span,
-.hero-name .row{
-  will-change:transform;
 }
 
 .hero-sub{
@@ -689,13 +833,15 @@ section{ padding:130px 0 60px; }
    frames this can't preload everything up front like the hero's 126 do, so the JS module keeps a
    small sliding window of frames loaded/decoded and evicts the rest -- nothing here needs to know
    that, it only ever sees whatever frame is currently drawn. */
-/* 6400px plays the 800-frame sequence itself; the extra 1500px (1000 darken + 500 hold) is scroll
-   distance for the post-footage blackout below -- kept in the same track/pin as the frame-scrub so
-   the whole sky-to-black moment never has its own pin/unpin boundary. Constants must match
-   DARKEN_RANGE/HOLD_RANGE in js/intro-scroll.js. */
+/* 4200px plays the 800-frame sequence itself; the darken-to-black ramp is overlapped with the
+   scrub's own last 45% (see DARKEN_START_T in js/intro-scroll.js) rather than needing scroll
+   distance of its own, so the only extra distance here is a short 80px held-black beat before
+   #identity begins -- deliberately tiny, not a pause -- kept in the same track/pin as the
+   frame-scrub so the whole sky-to-black moment never has its own pin/unpin boundary. SCROLL_RANGE
+   must match js/intro-scroll.js. */
 .intro-scroll-track{
   position:relative;
-  height:calc(100svh + 6400px + 1500px);
+  height:calc(100svh + 4200px + 80px);
 }
 @media (prefers-reduced-motion: reduce){
   .intro-scroll-track{ height:100svh; }
@@ -807,37 +953,42 @@ section{ padding:130px 0 60px; }
   .intro-titles{ flex-direction:column; gap:18px; }
 }
 
-/* ---------- REVEAL (post-blackout cinematic build -- content TBD) ---------- */
+/* ---------- IDENTITY (post-blackout cinematic scene: name + facts only) ---------- */
 /* Opens already pure black (matching .intro-blackout's held end-state, so the hand-off from
-   #about's own track has no visible seam) then builds itself back up purely from scroll, in two
-   scroll-driven layers -- see js/intro-scroll.js. 1800px is enough scroll for both layers to read
-   as unhurried, not a quick flash. */
-.reveal-scroll-track{
+   #about's own track has no visible seam). See js/scenes.js for the reveal engine: the ambient bg
+   fades in, then the name and each fact stagger-build top to bottom, holds fully assembled for a
+   stretch of scroll, then the whole .identity-content container fades/lifts out together as one
+   unit before #about-me begins. Now carries only 5 lines (name + 4 facts) -- the About Me passage
+   that used to live here moved into its own #about-me scene/track below it, so this scene stays
+   short and the giant name isn't competing with a wall of body copy for the same screen. 1972px
+   preserves the exact same build/exit pixel-durations as a previous 2200px pass -- only the hold
+   (the dead scroll between the build finishing and the exit starting) was cut, 308px -> 80px, per
+   feedback that the reveal animations themselves should stay exactly as slow/elegant as they were,
+   just reached with less waiting around them. */
+.identity-scroll-track{
   position:relative;
-  height:calc(100svh + 1800px);
+  height:calc(100svh + 1972px);
 }
 @media (prefers-reduced-motion: reduce){
-  .reveal-scroll-track{ height:100svh; }
+  .identity-scroll-track{ height:100svh; }
 }
 
-#reveal{
+#identity{
   min-height:100svh;
   position:sticky; top:0;
   display:flex; align-items:center; justify-content:center;
   overflow:hidden;
   background:#000;
+  padding:calc(var(--frame-h) + 40px) var(--edge) 60px;
 }
 
 /* Section-scoped reuse of the site-wide ambient-blob mechanism (see #ambient-bg above) for this
    one cinematic beat -- a deliberate, narrow exception to "one fixed ambient canvas," the same
    kind of scoped-background precedent #hero-prism already sets. Sharing the .ambient-blob class
    means js/script.js's existing mouse-parallax loop drives these blobs too, with zero new JS for
-   that part. Opacity/scale/blur (the fade-in itself) live on this one parent, written per scroll
-   frame by js/intro-scroll.js -- each child blob keeps a fixed relative opacity below so the group
-   fades in as one composition rather than needing three separate JS writes. Children's own
-   `transform` stays free for the mouse-parallax loop to keep driving independently -- a child's
-   translate composes naturally inside this parent's scale, no conflict. */
-.reveal-bg{
+   that part. Only #identity gets this treatment -- #about-me/#skills/#availability stay plain black
+   so multiple sections in a row don't each sprout their own glow and compete with the content. */
+.identity-bg{
   position:absolute; inset:0;
   z-index:0;
   overflow:hidden;
@@ -845,70 +996,533 @@ section{ padding:130px 0 60px; }
   opacity:0;
   will-change:transform, opacity, filter;
 }
-.reveal-blob{
+.identity-blob{
   position:absolute;
   border-radius:50%;
   filter:blur(95px);
 }
-.reveal-blob-1{
+.identity-blob-1{
   width:50vw; height:50vw; max-width:620px; max-height:620px;
   top:-8%; left:-6%;
   background:radial-gradient(circle, var(--hero-indigo) 0%, transparent 70%);
   opacity:0.7;
 }
-.reveal-blob-2{
+.identity-blob-2{
   width:44vw; height:44vw; max-width:560px; max-height:560px;
   bottom:-10%; right:-8%;
   background:radial-gradient(circle, var(--violet) 0%, transparent 70%);
   opacity:0.5;
 }
-.reveal-blob-3{
+.identity-blob-3{
   width:34vw; height:34vw; max-width:420px; max-height:420px;
   bottom:8%; left:22%;
   background:radial-gradient(circle, var(--hero-rose) 0%, transparent 70%);
   opacity:0.4;
 }
 
-.reveal-content{
+/* Content column: opacity stays 1 by default (js/scenes.js only writes to it for the group-exit
+   fade, which starts at 1 and only moves once the scene's own scroll reaches its exit phase) so a
+   visitor whose JS fails to load for any reason still sees the section, not permanent blackness.
+   Individual lines/words below default to opacity:0 -- same accepted tradeoff .intro-title already
+   makes -- reduced-motion visitors get the guaranteed-visible fallback via the media query below. */
+.identity-content{
   position:relative; z-index:1;
+  width:100%; max-width:1320px;
+  margin:0 auto;
   text-align:center;
-  opacity:0;
+  display:flex; flex-direction:column; align-items:center;
+  opacity:1;
 }
-.reveal-placeholder{
-  font-family:var(--display); font-style:italic; font-weight:300;
-  font-size:clamp(1.4rem, 3vw, 2rem);
+
+/* Pushed again past a previous 4.4-11.5rem pass -- still felt too small for the available canvas.
+   14rem now deliberately, clearly exceeds the Hero name's own 10.5rem ceiling: this scene has
+   nothing else sharing the frame with it, so it earns the biggest single moment on the site.
+   line-height stays tight (0.95, matching the Hero name's own 0.92) so the extra size reads as a
+   confident "shout," not just bigger text. */
+.identity-name{
+  font-family:var(--poster);
+  font-weight:400;
+  letter-spacing:0.01em;
+  font-size:clamp(4.6rem, 18vw, 14rem);
+  line-height:0.95;
+}
+
+/* Facts widened from a narrow centered stack into a horizontal, divided strip -- uses the section's
+   actual width instead of a small column marooned in the middle of the frame. Collapses back to a
+   vertical stack (no dividers) below 640px, where a divided row would wrap awkwardly. */
+.identity-facts{
+  margin-top:60px;
+  display:flex; flex-wrap:wrap; justify-content:center; align-items:stretch;
+}
+.identity-fact{
+  opacity:0;
+  display:flex; flex-direction:column; align-items:center; gap:9px;
+  padding:4px 44px;
+  border-left:1px solid var(--line);
+}
+.identity-fact:first-child{ border-left:none; }
+.identity-fact__label{
+  font-family:var(--mono);
+  font-size:0.88rem;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
   color:var(--muted);
+}
+.identity-fact__value{
+  font-family:var(--geist);
+  font-weight:500;
+  font-size:clamp(1.2rem, 1.75vw, 1.55rem);
+  color:var(--paper);
+}
+@media (max-width:640px){
+  .identity-facts{ flex-direction:column; gap:20px; }
+  .identity-fact{ border-left:none; padding:0; }
+}
+
+/* ---------- ABOUT ME (separate cinematic scene, own build-hold-exit) ---------- */
+/* No heading, no italic-serif "editorial caption" register here (deliberately breaking from the
+   Display family's usual "about-page copy" role, see DESIGN.md Typography) -- this passage is an
+   art-directed editorial statement in the site's sans body family (Inter), large-scale and
+   left-set rather than centered, with its own quiet ambient rays background. 2151px keeps the same
+   per-line/hold/exit pixel-durations as a previous 2303px, 6-line (heading + 5 sentences) pass --
+   the heading's own removal is the entire size difference, nothing was re-timed. */
+.about-me-scroll-track{
+  position:relative;
+  height:calc(100svh + 2151px);
+}
+@media (prefers-reduced-motion: reduce){
+  .about-me-scroll-track{ height:100svh; }
+}
+
+#about-me{
+  min-height:100svh;
+  position:sticky; top:0;
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden;
+  background:#000;
+  padding:calc(var(--frame-h) + 40px) var(--edge) 60px;
+}
+
+/* Ambient background, About Me only: a vanilla-CSS take on React Bits' Side Rays
+   (https://reactbits.dev/backgrounds/side-rays) -- the same "reimplement, don't import the
+   library" convention already used for Split Text/Shiny Text elsewhere in this file. Two soft,
+   heavily blurred conic wedges converge from the top-right corner (this component's own default
+   origin), tinted with the site's existing --accent-tint/--violet-tint -- no new hues -- and drift
+   with a slow rotate+scale breathing instead of the source's WebGL shader flicker: calmer, and
+   automatically frozen by the sitewide `*{ animation:none }` reduced-motion rule with zero extra
+   code. Kept deliberately faint (opacity 0.09-0.16, heavy blur) per "felt before noticed, never
+   overpowers the typography" -- a second, distinct ambient exception alongside #identity's blob
+   glow (see DESIGN.md Components): still one per section, never layered with another glow in the
+   same passage.
+   `mask-image` confines the whole layer to a soft ellipse roughly behind the text column (40% from
+   left -- where .about-me-copy actually sits -- 50% vertically) rather than letting it read across
+   the full section: fully visible out to 22% of the ellipse's own radius, fading to fully
+   transparent by 72%, well inside the box edges -- so top/bottom/left/right stay pure black
+   regardless of viewport size, and the light reads as coming from behind the typography (a hidden
+   spotlight), not from the page itself. */
+.about-me-rays{
+  position:absolute; inset:0;
+  z-index:0;
+  overflow:hidden;
+  pointer-events:none;
+  -webkit-mask-image:radial-gradient(ellipse 58% 62% at 40% 50%, #000 0%, #000 22%, rgba(0,0,0,0.5) 45%, transparent 72%);
+  mask-image:radial-gradient(ellipse 58% 62% at 40% 50%, #000 0%, #000 22%, rgba(0,0,0,0.5) 45%, transparent 72%);
+}
+.about-me-rays::before,
+.about-me-rays::after{
+  content:'';
+  position:absolute;
+  top:-45%; right:-25%;
+  width:130%; height:190%;
+  background:conic-gradient(from 195deg at 100% 0%,
+    transparent 0deg,
+    var(--accent-tint) 10deg,
+    transparent 24deg,
+    transparent 46deg,
+    var(--violet-tint) 58deg,
+    transparent 72deg,
+    transparent 130deg
+  );
+  filter:blur(70px);
+  transform-origin:100% 0%;
+  animation:about-me-rays-drift 48s ease-in-out infinite;
+}
+.about-me-rays::before{ opacity:0.16; }
+.about-me-rays::after{
+  opacity:0.09;
+  filter:blur(100px);
+  animation-duration:64s;
+  animation-direction:reverse;
+}
+@keyframes about-me-rays-drift{
+  0%, 100%{ transform:rotate(-3deg) scale(1); }
+  50%{ transform:rotate(3deg) scale(1.04); }
+}
+
+.about-me-content{
+  position:relative; z-index:1;
+  width:100%; max-width:1200px;
+  margin:0 auto;
+  opacity:1;
+}
+
+/* Left-set, offset column rather than a centered block -- max-width controls line length to a
+   comfortable editorial measure (~60-70 characters at this size), and the margin-left offset
+   (rather than dead-center) is what reads as art-directed composition instead of a plain paragraph;
+   the surrounding negative space on the right is deliberate, not empty. */
+.about-me-copy{
+  display:flex; flex-direction:column;
+  gap:14px;
+  max-width:680px;
+  margin-left:clamp(0px, 6vw, 90px);
+}
+
+/* Fraunces restored (upright, not italic) after an Inter-sans pass read as too generic/UI-flat for
+   this passage -- the composition itself (left-set offset column, no heading, see .about-me-copy
+   above) is what solves "reads like a centered quote/poem," not the typeface, so Fraunces' own
+   editorial character can come back without reintroducing that problem. Deliberately still
+   `font-style:normal`, not italic -- italic was the other half of the original "poem" complaint,
+   so it stays off even though the family is back. Size/line-height/letter-spacing/layout are
+   unchanged from the Inter pass. Text stays white (--paper); depth comes from a restrained
+   multi-layer text-shadow bloom -- a hairline white edge for crispness, two --accent-tint rings,
+   and a very soft, wide --violet halo for a touch more perceived depth -- still low-opacity, never
+   a flat/opaque glow, never neon -- "felt, not noticed." */
+.about-me-line{
+  font-family:var(--display);
+  font-style:normal;
+  font-weight:300;
+  font-size:clamp(1.3rem, 2.4vw, 1.85rem);
+  line-height:1.55;
+  letter-spacing:-0.01em;
+  color:var(--paper);
+  text-align:left;
+  text-shadow:
+    0 0 1px rgba(255,255,255,0.2),
+    0 0 22px rgba(124,147,255,0.18),
+    0 0 56px rgba(124,147,255,0.09),
+    0 0 110px rgba(91,79,224,0.06);
+}
+
+/* No opacity:0 here, deliberately -- matches .identity-name above. This is a 'words'-mode line
+   (see js/scenes.js's stagger lineConfigs): revealWords() only ever sets opacity/blur/transform on
+   the individual word <span> children it creates, never on this parent element. A parent stuck at
+   opacity:0 would compound with every child's own opacity and stay invisible forever regardless of
+   what the words do -- exactly the bug this class (and .about-me-line, below in its own section)
+   used to have (the "Software & Skills"/"Open For" headings and every About Me sentence rendered
+   permanently invisible). The words themselves still start hidden -- their own opacity is set by
+   revealWords() on the very first animation frame, before first paint -- so nothing flashes visible
+   before the reveal begins. Still used here for the Software & Skills and Open For headings; the
+   About Me heading that used to share this class was removed entirely, not just restyled. */
+.identity-heading{
+  font-family:var(--poster);
+  font-weight:400;
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+  font-size:clamp(1.7rem, 4.2vw, 2.6rem);
+  margin-bottom:32px;
+}
+
+/* Split Text words: a vanilla-CSS take on React Bits' Split Text
+   (https://reactbits.dev/text-animations/split-text) -- each word wrapped at init by
+   js/scenes.js's splitWords(), then individually eased opacity/blur/translateY, staggered across
+   its parent line's own scroll window, so a whole line "types itself in" word by word rather than
+   fading as one flat block. Reused for every plain-text line (name, headings, sentences); the
+   structured label/value fact rows and the skill/availability items animate as whole blocks
+   instead (splitting a "label: value" row word-by-word reads as noise, not signal). */
+.split-word{
+  display:inline-block;
+  will-change:transform, opacity, filter;
 }
 
 @media (prefers-reduced-motion: reduce){
-  .reveal-bg{ opacity:1; }
-  .reveal-content{ opacity:1; }
+  .identity-bg{ opacity:1; }
+  .identity-fact,
+  .identity-heading,
+  .about-me-line{ opacity:1; transform:none; filter:none; }
+  .split-word{ opacity:1; transform:none; filter:none; }
 }
 
-/* ---------- CONTACT ---------- */
-#contact{ padding:90px var(--edge); }
-.contact-main{ display:flex; flex-direction:column; gap:26px; }
-.contact-email{
-  font-family:var(--display); font-weight:300;
-  font-size:clamp(1.8rem, 6vw, 4rem);
-  border-bottom:1px solid rgba(245,245,241,0.25);
-  padding-bottom:20px; display:inline-block;
-  transition:color 0.3s ease;
+/* ---------- SKILLS (same build-hold-exit philosophy, no ambient bg of its own) ---------- */
+/* 2226px keeps the same build/exit pixel-durations as a previous 2600px pass -- only the hold
+   shrank, 494px -> 120px. */
+.skills-scroll-track{
+  position:relative;
+  height:calc(100svh + 2226px);
 }
-.contact-email:hover{ color:var(--accent); }
-.contact-links{ display:flex; gap:30px; flex-wrap:wrap; font-family:var(--mono); font-size:0.78rem; letter-spacing:0.04em; text-transform:uppercase; color:rgba(245,245,241,0.7); }
-.contact-links a:hover{ color:var(--paper); }
+@media (prefers-reduced-motion: reduce){
+  .skills-scroll-track{ height:100svh; }
+}
 
-footer{
-  display:flex; justify-content:space-between; align-items:center;
-  padding:34px var(--edge) 40px;
-  font-family:var(--mono); font-size:0.7rem; color:var(--muted); letter-spacing:0.03em;
+#skills{
+  min-height:100svh;
+  position:sticky; top:0;
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden;
+  background:#000;
+  padding:calc(var(--frame-h) + 40px) var(--edge) 60px;
 }
-footer button{ background:none; border:none; color:var(--muted); font-family:var(--mono); font-size:0.7rem; cursor:pointer; letter-spacing:0.03em; }
-footer button:hover{ color:var(--paper); }
+
+.skills-content{
+  position:relative; z-index:1;
+  width:100%; max-width:980px;
+  margin:0 auto;
+  text-align:center;
+  opacity:1;
+}
+
+.skills-grid{
+  margin-top:36px;
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+  gap:28px 20px;
+}
+
+.skill-card{
+  position:relative;
+  display:flex; flex-direction:column; align-items:center; gap:12px;
+  padding:26px 16px;
+  border:1px solid var(--line);
+  border-radius:4px;
+  opacity:0;
+}
+
+.skill-badge{
+  position:relative;
+  width:64px; height:64px;
+  display:flex; align-items:center; justify-content:center;
+  border-radius:50%;
+}
+/* Soft lighting/glow, tinted per-software via the inline --skill-color custom property set on
+   each .skill-card in index.html -- the one place brand color is allowed to appear, deliberately
+   subtle (low opacity, heavily blurred) so it reads as ambient light on the badge rather than a
+   loud color block. */
+.skill-badge::before{
+  content:'';
+  position:absolute; inset:-14px;
+  border-radius:50%;
+  background:radial-gradient(circle, var(--skill-color) 0%, transparent 70%);
+  opacity:0.4;
+  filter:blur(10px);
+  z-index:0;
+}
+.skill-badge__fallback{
+  position:relative; z-index:1;
+  font-family:var(--mono);
+  font-size:0.85rem;
+  letter-spacing:0.04em;
+  color:var(--paper);
+}
+/* Logo files are provided by the user directly (assets/skills/*.svg); onerror (index.html) adds
+   .is-missing so a not-yet-provided file degrades to the glow + initials fallback above instead of
+   a broken-image icon. */
+.skill-badge__logo{
+  position:absolute; inset:0;
+  z-index:2;
+  width:100%; height:100%;
+  object-fit:contain;
+  padding:12px;
+}
+.skill-badge__logo.is-missing{ display:none; }
+
+.skill-card__name{
+  font-family:var(--geist);
+  font-weight:500;
+  font-size:0.92rem;
+  letter-spacing:0.01em;
+  color:var(--paper);
+}
+
+/* Confidence indicator: a radial ring, not a linear progress bar -- stroke-dasharray/dashoffset on
+   .skill-ring__fill are computed by js/scenes.js from each card's own data-score (index.html) and
+   tied to the same scroll progress driving the card's own entrance, so the ring fills in as the
+   card arrives rather than snapping in already-complete. */
+.skill-ring{
+  position:relative;
+  width:60px; height:60px;
+  margin-top:2px;
+}
+.skill-ring svg{ width:100%; height:100%; transform:rotate(-90deg); }
+.skill-ring__track{ fill:none; stroke:var(--line); stroke-width:3; }
+.skill-ring__fill{ fill:none; stroke:var(--skill-color); stroke-width:3; stroke-linecap:round; }
+.skill-ring__value{
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--mono);
+  font-size:0.78rem;
+  color:var(--paper);
+}
+.skill-ring__value small{ font-size:0.62em; color:var(--muted); margin-left:1px; }
+
+@media (prefers-reduced-motion: reduce){
+  .skill-card{ opacity:1; transform:none; filter:none; }
+  .split-word{ opacity:1; transform:none; filter:none; }
+}
+
+/* ---------- AVAILABILITY ---------- */
+/* 1338px keeps the same build/exit pixel-durations as a previous 1600px pass -- only the hold
+   shrank, 352px -> 90px. */
+.availability-scroll-track{
+  position:relative;
+  height:calc(100svh + 1338px);
+}
+@media (prefers-reduced-motion: reduce){
+  .availability-scroll-track{ height:100svh; }
+}
+
+#availability{
+  min-height:100svh;
+  position:sticky; top:0;
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden;
+  background:#000;
+  padding:calc(var(--frame-h) + 40px) var(--edge) 60px;
+}
+
+.availability-content{
+  position:relative; z-index:1;
+  width:100%; max-width:560px;
+  margin:0 auto;
+  text-align:center;
+  opacity:1;
+}
+
+.availability-list{
+  margin-top:30px;
+  display:flex; flex-direction:column;
+}
+.availability-item{
+  font-family:var(--display);
+  font-style:italic;
+  font-weight:300;
+  font-size:clamp(1.35rem, 3.2vw, 2.1rem);
+  color:var(--paper);
+  padding:16px 0;
+  border-top:1px solid var(--line);
+  opacity:0;
+}
+.availability-list .availability-item:last-child{
+  border-bottom:1px solid var(--line);
+}
+
+@media (prefers-reduced-motion: reduce){
+  .availability-item{ opacity:1; transform:none; filter:none; }
+}
+
+/* ---------- CONTACT (final cinematic scene -- a vanilla-CSS/JS take on React Bits' Flowing Menu,
+   see index.html's own comment above #contact for the source/porting notes) ---------- */
+#contact{
+  min-height:100svh;
+  display:flex; align-items:center; justify-content:center;
+  background:#000;
+  padding:calc(var(--frame-h) + 40px) 0 40px;
+}
+
+.flow-menu-wrap{ width:100%; height:min(72vh, 760px); }
+.flow-menu{ display:flex; flex-direction:column; width:100%; height:100%; }
+
+.flow-item{
+  position:relative;
+  flex:1;
+  overflow:hidden;
+  border-top:1px solid var(--line);
+}
+.flow-item:first-child{ border-top:none; }
+
+.flow-item__link{
+  position:relative; z-index:1;
+  display:flex; align-items:center; justify-content:center;
+  width:100%; height:100%;
+  font-family:var(--poster);
+  font-weight:400;
+  letter-spacing:0.02em;
+  font-size:clamp(2.4rem, 6.4vw, 4.8rem);
+  color:var(--paper);
+  text-decoration:none;
+}
+
+/* The reveal band: hidden off-screen at whichever edge (top/bottom) it last exited toward,
+   js/flow-menu.js sets [data-edge] + toggles .is-visible on hover (desktop) or tap (touch) --
+   see that file for why the "jump to the new edge instantly, then animate to 0%" sequencing needs
+   a brief transition:none step first (same "start compressed, expand naturally" problem GSAP's own
+   .set()-then-.to() solves in the source component). signature-ease matches every other premium
+   transition on this site (scroll reveals, nav, the hero->project clone-and-grow). */
+.flow-marquee{
+  position:absolute; inset:0;
+  z-index:2;
+  overflow:hidden;
+  pointer-events:none;
+  opacity:0;
+  transform:translateY(101%);
+  transition:transform 0.6s cubic-bezier(.76,0,.24,1), opacity 0.6s cubic-bezier(.76,0,.24,1);
+}
+.flow-marquee[data-edge="top"]{ transform:translateY(-101%); }
+.flow-marquee[data-edge="bottom"]{ transform:translateY(101%); }
+.flow-marquee.is-visible{ transform:translateY(0%); opacity:1; }
+
+/* Brand-color gradients, one per platform -- an explicit, narrow exception to "no extra colors"
+   (see DESIGN.md Components), the same carve-out already established for the Skills section's
+   per-card brand glow. Kept low-alpha over a pure #000 base (never the source's flat white) so it
+   reads as a soft wash, not a saturated brand poster. */
+.flow-item[data-brand="instagram"] .flow-marquee{
+  background:
+    linear-gradient(135deg,
+      rgba(64,49,141,0.5) 0%,
+      rgba(176,52,140,0.42) 40%,
+      rgba(225,90,60,0.38) 75%,
+      rgba(240,168,70,0.32) 100%),
+    #000;
+}
+.flow-item[data-brand="teams"] .flow-marquee{
+  background:
+    linear-gradient(135deg, rgba(82,90,225,0.42) 0%, rgba(120,130,240,0.32) 100%),
+    #000;
+}
+.flow-item[data-brand="gmail"] .flow-marquee{
+  background:
+    linear-gradient(135deg, rgba(66,133,244,0.34) 0%, rgba(219,68,55,0.28) 55%, rgba(244,180,0,0.24) 100%),
+    #000;
+}
+.flow-item[data-brand="linkedin"] .flow-marquee{
+  background:
+    linear-gradient(135deg, rgba(10,60,130,0.5) 0%, rgba(0,119,181,0.4) 100%),
+    #000;
+}
+
+/* Continuous horizontal auto-scroll -- split onto its own element from .flow-marquee's hover
+   transform (see the comment above) so a CSS `animation` and `transition` never fight over the
+   same element's `transform`. js/flow-menu.js clones .flow-marquee__seed into two identical
+   .flow-marquee__group runs; animating exactly -50% loops seamlessly since both groups are
+   byte-identical. */
+.flow-marquee__track{
+  position:absolute; inset:0;
+  display:flex; align-items:center;
+  width:fit-content;
+  animation:flow-marquee-scroll 26s linear infinite;
+}
+@keyframes flow-marquee-scroll{
+  from{ transform:translate3d(0, 0, 0); }
+  to{ transform:translate3d(-50%, 0, 0); }
+}
+.flow-marquee__group{ display:flex; align-items:center; flex-shrink:0; }
+.flow-marquee__part{
+  display:flex; align-items:center; gap:20px;
+  flex-shrink:0;
+  padding:0 32px;
+}
+.flow-marquee__logo{
+  width:clamp(28px, 4vh, 44px); height:clamp(28px, 4vh, 44px);
+  object-fit:contain;
+}
+.flow-marquee__text{
+  font-family:var(--geist);
+  font-weight:500;
+  font-size:clamp(1rem, 2.4vh, 1.5rem);
+  letter-spacing:0.01em;
+  color:var(--paper);
+  white-space:nowrap;
+}
 
 @media (max-width:760px){
-  #contact{ padding:60px 20px; }
   .frame-bar span:last-child{ display:none; }
 }
 

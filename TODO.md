@@ -4,7 +4,659 @@ Working log for the kaan-acar-portfolio site. Written at the end of a session th
 the loader, the hero/global background, and a full rebuild of the Work section. Read this
 before starting the next session.
 
-## Completed this session (2026-07-27): Hero->Blender visual continuity (entry veil) + the
+## Completed this session (2026-07-30, part 3): Fast Travel becomes the site's *only* navigation --
+header Work/About/Contact removed, bottom-bar scroll-% readout removed, a 7th "Identity" destination
+added
+
+Direct follow-up to part 2 below (same day). User was satisfied Fast Travel worked and asked for
+convergence: fold "Identity" (name + facts, separate from the About Me prose scene) in as a new
+destination, then delete the two navigation surfaces Fast Travel had made redundant -- the header's
+own Work/About/Contact link list, and the bottom frame bar's "SCROLL XX%" readout -- rather than
+leaving them alongside it.
+
+- **New "Identity" destination** (`index.html`, `js/fast-travel.js`): inserted between "Who I Am"
+  and "About Me" in both the visual order and the `--i` values (0-6 now, was 0-5), targeting
+  `#identity` -- the first black section right after the Blender cinematic (name + Age/Education/
+  Degree/Current Status only), explicitly distinct from `#about-me`'s own prose passage. Landing
+  point: `t=0.66` inside `identity-scroll-track` (range 1972, exitStart 0.688) -- this scene's own
+  hold window is unusually narrow (only 0.043 wide, per `js/scenes.js`'s own comment on why its hold
+  was cut so short in an earlier session), so the margin on either side of 0.66 is tighter than the
+  other destinations get, by necessity of the scene itself rather than a looser landing choice here.
+- **Arc widened for the 7th item**: `--ft-step`'s divisor moved `5 -> 6` (six gaps for seven items,
+  was five for six) and `--ft-arc` opened up `150deg -> 168deg` desktop / `190deg -> 195deg` mobile,
+  `--ft-radius` `170px -> 182px` desktop / `126px -> 134px` mobile -- reasoned to keep roughly the
+  same per-item angular/pixel spacing as the 6-item version rather than letting the extra item
+  compress everything, not measured against a real render.
+- **Header nav removed entirely** (`index.html`, `css/style.css`): `<header id="site-header">` now
+  contains only the `<a class="logo">` -- the `<nav><ul>` of Work/About/Contact links, and its
+  corresponding `nav ul`/`nav a`/`nav a::after`/`nav a:hover::after` CSS, are gone, not hidden.
+  `header`'s own `justify-content:space-between` (meaningless with a single child now) was dropped
+  too. Fast Travel's own doc comments (top of `js/fast-travel.js`, the FAST TRAVEL block in
+  `css/style.css`, the DESIGN.md Components bullet) updated to stop describing it as "additional,
+  alongside the header nav" now that it's the only nav on the page.
+- **"SCROLL XX%" readout removed**: the `<span id="scroll-pct">` in `#frame-bottom` (`index.html`)
+  and its updating IIFE in `js/script.js` ("Scroll progress in bottom frame bar") are both deleted,
+  not just hidden -- `#frame-bottom` now holds only "ISTANBUL, TR". No replacement was requested or
+  added; the bottom frame bar is intentionally asymmetric against the top bar's two labels now, a
+  direct consequence of removing the scroll UI outright rather than an oversight.
+- Verified: `node --check` on both touched JS files, CSS brace balance (288/288), confirmed
+  `scroll-pct`/`<nav>` are gone from `index.html`, confirmed all seven `data-target` hashes
+  (`#work`/`#about`/`#identity`/`#about-me`/`#skills`/`#availability`/`#contact`) resolve to a real
+  id in the document, zero duplicate ids. **Still no live browser check** -- `mcp__claude-in-chrome`
+  failed to attach a tab again this session. The one thing most worth a real look: whether the
+  widened arc actually gives seven items comfortable, non-overlapping spacing at real viewport
+  widths (especially the ~760px mobile breakpoint), and whether `#identity`'s tight 0.043-wide hold
+  window is forgiving enough in practice given the custom scroll's own settle time.
+
+## Completed this session (2026-07-30, part 2): Fast Travel refinements -- hover-forgiveness
+geometry, two destination-landing fixes, bigger hit targets
+
+Direct follow-up to part 1 below (same day). Navigation itself worked; user flagged four polish
+items: the wheel still occasionally closed while moving from the trigger toward an item; About Me
+should land squarely on the fully-built, already-centered composition, "not before or after it";
+Who I Am should always reset the Blender sequence to frame 0 ("exactly like the first website
+visit"), not land mid-timeline; and each wheel item's hover target should be a bit more forgiving.
+
+- **Hover-forgiveness bug, root-caused (not just patched with a longer delay)**: the trigger's own
+  painted box and the nearest wheel item can sit 100px+ apart (the arc's radius) -- `mouseleave`
+  fired on `#fast-travel` the instant the cursor left the trigger, before reaching an item, closing
+  the wheel mid-transit even though `mouseenter` correctly re-fired once the cursor landed on an
+  item (mouseenter/mouseleave key off DOM ancestor-chain membership, not continuous screen coverage).
+  Fixed at the geometry level, not just the timer: a new `.fast-travel__hit-zone` (`index.html`,
+  `css/style.css`) is one large invisible circle centered on the exact same anchor the items
+  themselves radiate from, sized past the outermost item's reach -- there is now no empty space to
+  cross between trigger and wheel. It's the first child inside `.fast-travel__wheel` so items
+  painted after it in the DOM still win hit-testing over their own pixels (stay independently
+  clickable); its `pointer-events` only turn on once `.open`, so it never shadows ordinary page
+  content while closed. The 300ms `CLOSE_DELAY` debounce from the previous pass (bumped 200->300ms
+  per this session's ask) stays as a second line of defense for whatever the circle doesn't catch,
+  not a replacement for fixing the geometry.
+- **Bigger hover targets**: the trigger's own clickable box grew via `padding:20px 16px` offset by
+  a matching `margin:-12px -12px` -- the padding increase (not the full new padding value) is what
+  the negative margin cancels, so the visible dot+label sit exactly where they did before and
+  `#fast-travel`'s own auto-height (which the wheel/glow's `top:50%` anchor is computed against)
+  doesn't shift either; net a 24px-taller/24px-wider invisible hit box with zero visual movement.
+  Each `.fast-travel__item`'s own padding grew `6px 4px` -> `12px 16px` -- simpler, no compensating
+  margin needed there, since items are already self-centered on their circle point via their own
+  `translate(-50%,-50%)`, so growing the box symmetrically doesn't move it.
+- **Who I Am -> #about now resets to frame 0**: `TRACK_TARGETS['#about'].t` in `js/fast-travel.js`
+  changed `0.42 -> 0`, i.e. the literal top of `intro-scroll-track` -- `targetY = trackTop + 0*range`
+  -- which reproduces a first-time-visitor's exact state (frame 0 drawn, all three titles hidden,
+  entry veil fully opaque), not a mid-sequence moment. Previously this landed just past the video's
+  own baked "WHO I AM" reveal (~frame 336); that was a reasonable first guess but the user was
+  explicit this destination means "start over," not "jump to a specific frame."
+- **About Me landing point retuned for margin, not just repositioned**: `TRACK_TARGETS['#about-me'].t`
+  `0.58 -> 0.54`. `js/scenes.js`'s own stagger constants put that scene's 5th (last) line finishing
+  its build at t~0.521 and its group-exit starting at exitStart=0.652 -- a fully-built "hold" window
+  only 0.131 wide. Landing at 0.58 (the previous middle-of-hold guess) worked but left only a 0.072
+  buffer before the exit; 0.54 lands just past the build finishing (maximum margin on both sides,
+  0.019 after build / 0.112 before exit) so a visitor reliably sees the composition "immediately,"
+  fully centered, comfortably before any exit motion could begin.
+- **`DESIGN.md` updated deliberately alongside this**: the Fast Travel bullet's landing-point
+  paragraph corrected to describe `#about` as the deliberate frame-0 exception rather than grouping
+  it with the other three "lands mid-hold" destinations, and a new sub-bullet documents the
+  hit-zone's geometry-first approach to hover forgiveness (the circle as the primary fix, the delay
+  as backup, not either/or).
+- Verified: `node --check` on `js/fast-travel.js`, CSS brace balance (292/292), confirmed
+  `.fast-travel__hit-zone` present in both `index.html` and `css/style.css`, zero duplicate ids
+  introduced. **Still no live browser check** -- `mcp__claude-in-chrome` failed to attach a tab again
+  this session, consistent with every session in this file's history. The hit-zone's actual on-screen
+  forgiveness (does the circle really cover the full arc at every breakpoint, does 300ms feel
+  "premium" rather than laggy) and the two retuned landing points are reasoned from the exact
+  constants in `js/scenes.js`/`js/intro-scroll.js`, not measured against a real scroll/hover pass --
+  worth a live check when possible.
+
+## Completed this session (2026-07-30): Fast Travel added -- a new, independent radial quick-nav,
+left-center of the viewport, alongside (not replacing) the existing header
+
+User asked for a "premium navigation shortcut" modeled on React Bits' Option Wheel
+(https://reactbits.dev/components/option-wheel). First check of the request against the actual
+code found no existing left-side vertical icon nav anywhere -- only the top `#site-header` (logo +
+Work/About/Contact) -- so this was clarified with the user via AskUserQuestion before building:
+keep the header exactly as-is, Fast Travel is additive, not a replacement.
+
+- **New component**: `#fast-travel` (`index.html`, right after `</header>`), styled in a new FAST
+  TRAVEL block in `css/style.css`, behavior in a new `js/fast-travel.js` (mounted via the same
+  lazy-`import()` code-split convention as `js/scenes.js`/`js/intro-scroll.js`/`js/flow-menu.js`,
+  shown/hidden in lockstep with `#site-header`'s own three `.show` call sites in `js/script.js`).
+  Fixed at the viewport's left-center; by default shows only "Fast Travel" (Geist, matching the
+  header nav's own type role) plus one small `--accent` dot.
+- **Reimplemented, not imported**, same convention as this project's other React Bits ports (Split
+  Text/Shiny Text/Side Rays/Flowing Menu). Two deliberate departures from the source, both because
+  the trigger sits at the left edge rather than in open space: items fan across a right-opening
+  ~150deg arc (`--ft-arc`) instead of a full 360deg ring (a full ring would clip off the left edge);
+  and depth comes from one restrained ambient `--accent` glow behind the wheel rather than
+  glass/blur/drop-shadow, since DESIGN.md's elevation rule keeps depth tonal on foreground chrome --
+  a fourth instance of the same narrow "blurred glow behind an interactive element" exception
+  already granted to the Skill ring / `.about-me-rays` / Flowing Menu marquee. `DESIGN.md` updated
+  deliberately alongside this with a new Components bullet documenting both departures.
+- **Six items, auto-mapped to existing sections** by reading the actual content, not guessed: My
+  Projects -> `#work`, Who I Am -> `#about` (the identity intro's own baked "WHO I AM" reveal, per
+  `js/intro-scroll.js`'s own comment -- not `#identity`, which has no heading of its own), About Me
+  -> `#about-me`, Software & Skills -> `#skills`, Open For -> `#availability`, Social Media ->
+  `#contact`.
+- **Custom cinematic scroll, not the browser default**: `js/fast-travel.js` implements its own
+  cubic-bezier solver (Newton-Raphson, same technique browsers use internally) for the site's exact
+  `signature-ease` (`cubic-bezier(.76,0,.24,1)`), then drives `window.scrollTo` on it via `rAF`.
+  Five of the six destinations are scroll-scrubbed, sticky-pinned scenes whose content is only
+  fully built partway into their own track -- a bare anchor jump would land on frame 0 of the
+  Blender scrub or a scene still at opacity:0. `TRACK_TARGETS` in `js/fast-travel.js` instead lands
+  each one inside its own scene's "hold" window (every line built, before the group-exit begins),
+  computed from the exact `range`/`exitStart`/stagger constants already in `js/scenes.js`/
+  `js/intro-scroll.js` -- kept as plain literals in manual lockstep with those files' own numbers,
+  same kind of lockstep those two already keep with their CSS track heights.
+- **Social Media / LinkedIn**: per the user's brief, fixed the pre-existing `#contact` Flowing
+  Menu's LinkedIn row -- `href="#"` was a deliberate placeholder from the 2026-07-28 part 7 session
+  (no URL had been given then) -- to the real profile URL the user provided this session
+  (`target="_blank" rel="noopener noreferrer"`, matching the Instagram row's own pattern). Fast
+  Travel's own "Social Media" item scrolls to `#contact`, where that real link now lives; no second,
+  separate social-links UI was built inside the wheel itself, since the Flowing Menu is already an
+  extensible list of rows -- adding another platform later means adding another `.flow-item`, not
+  new architecture.
+- **Interaction**: hover (desktop, `(hover:hover) and (pointer:fine)`) or click/tap opens the wheel;
+  Escape closes and refocuses the trigger; clicking outside closes it; `aria-expanded`/`tabindex`
+  are kept in sync so wheel items aren't Tab-reachable while closed. The wheel's own open/close
+  motion is plain CSS transitions on `.open`, so the sitewide `*{ transition:none !important }`
+  reduced-motion rule already makes it instant with zero extra code; the rAF scroll is explicit
+  JS, not CSS, so `js/fast-travel.js` checks `prefers-reduced-motion` itself and jumps instantly
+  instead of animating when it's set.
+- Verified: `node --check` on `js/fast-travel.js` and the touched `js/script.js`, a CSS
+  brace-balance count (290/290), and a script cross-checking every id `js/fast-travel.js` references
+  against `index.html` (all resolved, zero duplicate ids introduced). **No live browser check this
+  session** -- `mcp__claude-in-chrome` failed to establish a tab group on every retry (`tabs_context_mcp`
+  errored each time), same as every session before it per this file's own history; a throwaway Node
+  static server was started/killed cleanly again but never got a browser attached. The one thing
+  most worth a real look once possible: the radial arc's actual on-screen geometry (item spacing/
+  overlap at real viewport widths, especially the ~760px mobile breakpoint's tighter 190deg arc),
+  and whether the five computed scroll-hold landing fractions in `TRACK_TARGETS` actually land where
+  intended -- they're reasoned directly from `js/scenes.js`/`js/intro-scroll.js`'s own constants,
+  not measured against a real scroll.
+
+## Completed this session (2026-07-28, part 7): #contact completely rebuilt as a Flowing-Menu-style
+closing scene, replacing the old "Let's talk" section and <footer> entirely
+
+User wanted the whole Contact/footer area gone and replaced with an interaction modeled on React
+Bits' Flowing Menu (https://reactbits.dev/components/flowing-menu): four always-visible rows
+(Instagram / School Mail / Main Mail / LinkedIn), each revealing a brand-logo marquee on hover/tap
+instead of the source's plain text-on-white treatment, over a soft brand-color gradient instead of
+white, on a pure-black background with no visible seam from the section above. User dropped a
+`last session/` folder with the four logo PNGs and a 10s screen recording of them interacting with
+the actual reactbits.dev demo page.
+
+- **Reference verified two ways before building, not guessed**: fetched the component's actual
+  source (`FlowingMenu.jsx`/`.css`) directly from `github.com/DavidHDev/react-bits` to get the real
+  mechanics (GSAP-driven: marquee slides in from whichever edge -- top or bottom -- the cursor
+  entered nearest, `y:±101% -> 0%` on the window plus a counter-sliding inner content layer, a
+  separate continuous horizontal auto-scroll via `x:-contentWidth` looped); and extracted frames
+  from the user's own recording (`ffmpeg`, already on PATH, same technique used for the two earlier
+  screen-recording bug reports this session) to confirm the actual on-page behavior matched the
+  source read. Also verified via `ffprobe`/pixel-sampling that all four provided logo PNGs have real
+  alpha transparency (Instagram is palette-indexed with a transparent entry, the other three are
+  plain rgba) before wiring them in, same diligence as the earlier skill-logo session.
+- **`<footer>` removed entirely, `#contact` extended to `background:#000`**: no separate footer
+  chrome remains anywhere on the page -- `#contact` is now the page's literal last element, sharing
+  the exact same pure black as `#identity`/`#about-me`/`#skills`/`#availability` above it (see
+  DESIGN.md Colors) so there's no visible section boundary. The dead `#back-to-top` click handler in
+  `js/script.js` was removed along with the button (was already a safe no-op via its own `if
+  (!btn) return`, but this was a deliberate full removal, not a toggle, so it was cleaned up too).
+- **Ported, not copy-pasted -- two deliberate mechanical departures from the source**, both
+  documented inline in `js/flow-menu.js`: (1) the hover-reveal transform and the continuous
+  horizontal scroll are split across two separate elements (`.flow-marquee` for the Y
+  transition, its child `.flow-marquee__track` for the X keyframe) instead of the source's single
+  GSAP-driven element, since a CSS `transition` and `animation` can't cleanly share one element's
+  `transform` and this project deliberately keeps GSAP scoped to the loader's crowd canvas only
+  (per an earlier session's own note in this file); (2) marquee repetitions are cloned from one seed
+  element at init (`buildTrack`, 10 repeats x 2 groups, animated exactly -50% for a seamless loop)
+  rather than the source's resize-aware dynamic recalculation -- simpler, safe for content this
+  short. The reveal itself replicates the source's real subtlety: entering near the top of a row
+  slides the marquee in from the top, entering near the bottom slides it from the bottom, and
+  leaving mirrors whichever edge the cursor exits through -- computed via `getBoundingClientRect`
+  same as the source's `findClosestEdge`. A `transition:none` + forced-reflow step handles the case
+  the source solves with GSAP's `.set()`-then-`.to()`: jumping instantly to the new entry edge
+  before animating in, so re-entering from the opposite edge never sweeps across the whole row.
+- **Brand-color gradients, not the source's flat white marquee**: each row's marquee background is
+  a `linear-gradient` in that platform's own colors (Instagram pink/purple/orange, Teams
+  blue/indigo, Gmail blue/red/yellow, LinkedIn deep blue) at low alpha (0.24-0.5) over a `#000`
+  base -- muted, never at full brand saturation. Framed and documented in `DESIGN.md` as a second
+  explicit brand-color exception alongside the Skills section's existing per-card glow precedent,
+  not a general loosening of "no extra colors."
+- **Content**: Instagram -> `https://www.instagram.com/kaanaccr/` (constructed directly from the
+  handle the user gave, not invented) opens in a new tab; School Mail -> `mailto:kaan.acar@
+  bahcesehir.edu.tr`; Main Mail -> `mailto:acarkaan768@gmail.com`; LinkedIn's `href="#"` is a
+  deliberate placeholder -- no profile URL was given, and none was guessed, per this project's own
+  standing rule against inventing URLs. Flagged clearly to the user rather than silently fabricating
+  one.
+- **Mobile**: hover swapped for tap via a `(hover: hover) and (pointer: fine)` media query check at
+  init -- first tap on an unrevealed row shows its marquee without navigating (and closes any other
+  open row), a second tap navigates normally; tapping anywhere outside `.flow-item` closes whatever
+  is open. Reduced motion needed zero special-casing in the JS (unlike `js/scenes.js`) -- the
+  sitewide `*{ animation:none !important; transition:none !important; }` rule already stops both the
+  continuous marquee scroll and the reveal transition, leaving instant, non-animated show/hide.
+- **`DESIGN.md` updated deliberately alongside this**: the Colors pure-black exception list now
+  includes `#contact` and notes there's no separate footer anymore; the Section numeral bullet
+  corrected (`#contact` no longer carries a numeral, `#work`'s `01` is the only one left on the
+  page); a new Components bullet documents the Flowing Menu port and its brand-color exception,
+  cross-referenced against the Skill ring's existing precedent.
+- Verified: `node -c` on all four JS files (including the new `js/flow-menu.js`), CSS brace balance,
+  duplicate-id check, confirmed every `assets/contact/*.png` path referenced in `index.html` matches
+  an actual copied file, confirmed no `<footer>` element or `contact-email`/`contact-links` CSS
+  survives anywhere. **Still no live browser access in this environment** -- the hover/tap
+  interaction itself (the part most worth seeing in motion) is code-verified and reasoned from the
+  fetched source + the user's own recording, not re-screenshotted. A live check of the actual hover
+  feel -- transition timing, whether the brand gradients read as "elegant" rather than "muddy" over
+  black, logo sizing inside the marquee -- is the natural next step once possible.
+
+## Completed this session (2026-07-28, part 6): #about-me art-direction refinement -- rays masked to
+a spotlight behind the text, typeface reverted from Inter back to upright Fraunces, text bloom
+deepened slightly. CSS-only, nothing structural changed
+
+Direct follow-up to part 5's full About Me redesign. User confirmed the direction was close but
+flagged three specific things, explicitly "refine, don't redesign": the Side Rays background was
+reading as a full-section wash that disconnected the section from the rest of the black canvas
+(wanted it masked into a soft spotlight confined behind the text, edges staying pure black); the
+Inter Light typeface from part 5 didn't feel as premium/luxurious as what was there before and
+should be restored; and the text's own glow should get slightly more depth, still subtle.
+
+- **`.about-me-rays` masked into a spotlight** (`css/style.css`): added
+  `mask-image`/`-webkit-mask-image: radial-gradient(ellipse 58% 62% at 40% 50%, #000 0%, #000 22%,
+  rgba(0,0,0,.5) 45%, transparent 72%)` to the existing rays container. The gradient's own color
+  stops reach fully transparent at 72% of its defined radius (which itself is only 58%/62% of the
+  section box), so the fade completes well inside the viewport on every screen size -- edges stay
+  guaranteed pure black, not just visually faint. Center positioned at 40%/50% to sit roughly behind
+  where `.about-me-copy`'s offset column actually renders (computed from the layout's own math, not
+  guessed), so the light reads as emanating from behind the typography specifically. Nothing else
+  about the rays (color, opacity, blur, drift animation) changed.
+- **Typeface reverted**: `.about-me-line`'s `font-family` moved back from Inter to `var(--display)`
+  (Fraunces) -- but kept **upright** (`font-style:normal`), not italic. This is a deliberate
+  synthesis, not a straight revert: the user's original complaint two sessions ago was specifically
+  about *centered italic* Fraunces reading like "a memorial message, a quotation, or a poem" --
+  since the composition is no longer centered (left-set offset column, from part 5) and italic is
+  still off, Fraunces' own editorial character can come back without reintroducing that problem.
+  Explained this reasoning back to the user rather than silently picking one reading of an
+  ambiguous "restore the previous font" instruction. Font-size/line-height/letter-spacing/layout
+  are byte-identical to part 5, per "keep all current spacing, animation and composition."
+- **Text bloom deepened slightly**: `.about-me-line`'s `text-shadow` gained a fourth, very soft, wide
+  layer (`0 0 110px rgba(91,79,224,.06)`, using the existing `--violet` hue) and the existing three
+  layers' opacities nudged up modestly (0.18/0.14/0.06 -> 0.2/0.18/0.09) for "increase the feeling
+  of depth slightly" -- still no new colors, still well short of anything neon/heavy.
+  - `DESIGN.md` updated deliberately alongside this (not silently): Typography's Display bullet now
+  documents the upright-Fraunces exception and the reasoning for why it landed there (both the
+  Inter and the original centered-italic-Fraunces attempts are named as the two things that read
+  wrong, for different reasons); the Do's-and-Don'ts Fraunces-italic rule now carves out this one
+  sanctioned upright exception; the Components "About Me redesign" bullet's typography/rays notes
+  were corrected to match (no more stale "Inter Light" reference) and the rays note now mentions
+  the mask explicitly.
+- Verified: `node -c` on all three JS files (untouched this part, no JS changes needed since this
+  was pure CSS), CSS brace balance, and direct regex checks confirming `.about-me-line` uses
+  `var(--display)` + `font-style:normal` and `.about-me-rays` carries the new `mask-image`. No
+  HTML/JS structure changed at all this part -- no id/class renames, so no cross-file reference risk
+  to re-check. **Still no live browser access in this environment** -- code-verified, not
+  screenshotted; the mask's exact visual softness/positioning is the one thing most worth a real
+  look once possible.
+
+## Completed this session (2026-07-28, part 5): #about-me redesigned as an editorial statement --
+no heading, Inter Light typography, a soft text bloom, and a vanilla-CSS Side Rays background.
+Scoped strictly to this one section, nothing else touched
+
+With the part-4 rendering bug fixed and About Me actually visible, the user asked for a full visual
+redesign of just this section: the centered italic-Fraunces paragraph read as "a memorial message,
+a quotation, or a poem," not a premium portfolio moment. Explicit constraints: no other section may
+change, keep the exact text and the exact existing scroll-reveal mechanic/timing feel, remove the
+visible heading entirely, move to a modern sans in the editorial-magazine register (Apple/Awwwards/
+Studio Freight/Locomotive/COS were the named references), add a subtle text bloom (no neon/RGB/heavy
+shadow), and add React Bits' Side Rays (https://reactbits.dev/backgrounds/side-rays) as an ambient
+background for this section only, color chosen to fit the site.
+
+- **Heading removed entirely** (`index.html`): the `<h3 id="line-about-heading">About Me</h3>` is
+  gone, not hidden -- only the `sr-only` `<h2>` landmark remains for accessibility. `js/scenes.js`'s
+  `aboutMeScene` dropped the corresponding `line-about-heading` lineConfig.
+- **Typography rebuilt, not just recolored**: `.identity-sentence`/`.identity-about` (renamed
+  `.about-me-line`/`.about-me-copy` -- confirmed via grep these classes were used nowhere else
+  before renaming) moved from Fraunces italic/centered to **Inter Light (300)** at
+  `clamp(1.3rem, 2.4vw, 1.85rem)`, left-aligned, in an **offset column**
+  (`margin-left:clamp(0px, 6vw, 90px)`, `max-width:680px` inside a wider `1200px` content box) --
+  asymmetric negative space instead of a centered block, the actual "art-directed, not a plain
+  paragraph" move. Added Inter weight 300 to the Google Fonts request (`index.html`'s existing
+  `Inter:wght@400;500;600` -> `Inter:wght@300;400;500;600`) since nothing in the project had loaded
+  that weight before. `DESIGN.md`'s Typography section updated: Display (Fraunces italic) no longer
+  lists "about-page copy" as one of its uses; Body (Inter) now notes this large-scale editorial
+  exception explicitly.
+- **Soft text bloom** (`.about-me-line`'s `text-shadow`): a hairline white edge
+  (`0 0 1px rgba(255,255,255,.18)`) plus two low-opacity rings in `--accent-tint` (`#7C93FF`, an
+  existing, previously-unused-in-CSS primary-tint token) at 24px/6% and 48px/... -- deliberately
+  restrained, no color shift on the glyphs themselves (`color:var(--paper)` unchanged, still white).
+  Confirmed and documented in `DESIGN.md` that this is a *different, quieter* category of effect
+  than `.shiny-text` and doesn't count against that component's explicit two-use ceiling.
+- **`.about-me-rays`**: a vanilla-CSS reimplementation of React Bits' Side Rays -- fetched the actual
+  component source from `github.com/DavidHDev/react-bits` (a WebGL/OGL shader: two colored ray cones
+  from a corner, animated via a fragment shader) to understand the real mechanics rather than
+  guessing from the name, then ported the *visual result* (not the shader) into two blurred
+  `conic-gradient` pseudo-elements anchored at the top-right corner (the source's own default
+  `origin`), tinted with the existing `--accent-tint`/`--violet-tint` tokens (no new hues), opacity
+  0.09-0.16, drifting on a slow (48s/64s, reversed) rotate+scale keyframe -- automatically frozen by
+  the sitewide `*{ animation:none }` reduced-motion rule, zero extra code needed. This is the same
+  "reimplement the effect in vanilla CSS/JS, don't pull in the library" convention this codebase
+  already established for Split Text and Shiny Text, now documented as such in `DESIGN.md`.
+- **`DESIGN.md` updated deliberately alongside this** (not silently): Typography's Display/Body
+  bullets (above), the Components "Section-scoped ambient reveal" bullet (now `#about-me` also has
+  one, a second *distinct* exception, not a loosening), a new "About Me redesign" Components bullet
+  documenting all four departures from the site's usual conventions in one place so a future session
+  doesn't "fix" them back, and both the Shiny Text bullet and its Do's-and-Don'ts entry updated to
+  clarify the new text bloom doesn't count against that component's ceiling.
+- **Confirmed nothing else changed**: `.identity-heading` (still shared by the Software & Skills and
+  Open For headings) was left in place untouched, only its explanatory comment corrected to stop
+  referencing the now-deleted `.identity-sentence`. Every other scene's CSS/JS/content is
+  byte-identical to before this part.
+- Verified: `node -c` on all three JS files, CSS brace balance, an id/trackId/contentId
+  cross-check between `js/scenes.js` and `index.html`, confirmed the new `range:2151`/`exitStart:
+  0.652`/stagger values in `js/scenes.js` match `.about-me-scroll-track`'s CSS height exactly (both
+  recomputed from the prior 6-line pass to preserve the exact same per-sentence cascade width and
+  hold/exit pixel durations -- only the heading's own removal changed the total, nothing was
+  re-timed, per "keep the existing scroll animation"). **Still no live browser access in this
+  environment** -- this is code-verified and reasoned from the fetched Side Rays source, not
+  screenshotted. A live scroll-through (or another screen recording) is the natural next check,
+  particularly for how the offset column and rays actually look together at real viewport widths.
+
+## Completed this session (2026-07-28, part 4): found and fixed the REAL reason About Me looked
+"missing" -- a genuine rendering bug, not a content/ordering/pacing problem
+
+User pushed back a third time insisting About Me was still missing despite part 3's direct file
+proof that the section, order, and exact text were all correct in the code. Rather than re-editing
+already-correct content again, asked how they were viewing it -- they came back with a screen
+recording (`MAIN PROBLEM/*.mp4`, dropped in the repo root). `mcp__claude-in-chrome` was still
+unavailable in this environment, but `ffmpeg`/`ffprobe` (already on PATH) let this session extract
+the actual video frames at 4fps and read them as images -- the first real look this whole set of
+sessions has had at how the site actually renders, previously always blocked.
+
+The frames showed something no prior structural check could have caught: `#identity` renders
+correctly (name + all 4 facts visible), then a long stretch of pure black with the scrollbar
+visibly moving and *nothing* appearing, then a hard cut straight to a Skills card fading in --
+confirming the About Me content was never painting at all, not a pacing/ordering issue.
+
+- **Root cause, found by re-reading `js/scenes.js`'s `revealWords()` against `css/style.css`**:
+  `revealWords()` (used for every `mode:'words'` line -- name, all three section headings, every
+  About Me sentence) only ever sets `opacity`/`filter`/`transform` on the individual word `<span>`
+  children it creates via `splitWords()` -- it never touches the parent line element itself.
+  `.identity-heading` and `.identity-sentence` both had `opacity:0` hardcoded directly on that
+  parent element in CSS. Since CSS opacity compounds down the render tree, a parent frozen at
+  `opacity:0` renders its entire subtree invisible forever, regardless of what the child words'
+  own opacity does -- so the About Me heading and all 5 sentences (and, less visibly since their
+  sections still show content below via block-mode reveals, the "Software & Skills" and "Open For"
+  headings too) were painting at permanent zero opacity. `.identity-name` (the one 'words'-mode
+  line that *did* visibly work in the recording) never had this bug, because its CSS rule never set
+  `opacity:0` on the parent in the first place -- word-level opacity alone was always sufficient,
+  which is exactly the proof this fix leans on.
+- **Fix** (`css/style.css`): removed the `opacity:0` declaration from both `.identity-heading` and
+  `.identity-sentence`, matching `.identity-name`'s already-correct pattern. Nothing else changed --
+  not the reveal functions, not any scene's range/exitStart/stagger math from part 3, not the
+  content or section order, all of which were already right. The individual words still start
+  hidden (their own opacity is set by `revealWords()` on the very first animation frame, before
+  first paint), so there's no flash-of-visible-text regression.
+- **This one fix resolves three symptoms at once**: the About Me passage will now actually build in
+  and hold instead of leaving a silent black gap; the "Software & Skills" heading and "Open For"
+  heading (same bug, same class, not previously flagged by the user but broken all the same) will
+  now render too.
+- Verified: CSS brace balance, and a regex check confirming `opacity:0` no longer appears on either
+  selector. **Could not re-verify in an actual browser** -- `mcp__claude-in-chrome` failed on retry
+  again this session, same as every session before it. Frame-extraction via `ffmpeg` only works
+  against an existing recording, not a live page, so this fix is code-verified and reasoned from the
+  video evidence, not re-screenshotted. **If this still doesn't look right, another screen recording
+  covering the #identity -> #about-me -> #skills handoff would be the fastest way to confirm or
+  rule this out.**
+
+## Completed this session (2026-07-28, part 3): holds slashed (not the reveals), sky darkens sooner,
+Identity pushed larger again, About Me content replaced with the user's exact final copy
+
+Direct follow-up to part 2. User confirmed the overall cinematic style is now close to right and
+explicitly said **don't touch animation speed** -- the word-cascade reveals, the blur/translateY
+easing, `SCENE_LERP` -- all of that should stay exactly as slow and elegant as it already is. The
+actual complaint is the *dead* scroll: the hold after a scene finishes building and before the next
+one starts. Also: darkening should start even sooner, the post-blackout pause should be tiny, the
+name still isn't dominant enough, and About Me needed to use the user's own final paragraph (split
+into 5 sentences here, not the 8 written last session).
+
+- **Every scene's hold cut hard, builds/exits left byte-for-byte the same pixel length**: for each
+  scene, computed the OLD build-phase and exit-phase pixel widths first (e.g. identity's build was
+  1276px, exit 616px), picked a much smaller hold px (identity: 308px -> 80px), then solved backward
+  for a new `range`/`exitStart`/stagger `base`/`step`/`span` that reproduces those same build/exit
+  pixel widths on the smaller total range -- verified with a small script, not eyeballed. Net: every
+  line's own word-cascade takes exactly as much scrolling as it did before (the "beautiful slow
+  reveal" is untouched), only the static waiting around it shrank. `identity` 2200->1972px (hold
+  308->80), `about-me` recomputed for its new 6-line content at 3400->2303px (hold 1377->280),
+  `skills` 2600->2226px (hold 494->120), `availability` 1600->1338px (hold 352->90). `js/scenes.js`
+  and `css/style.css` kept in exact lockstep (`range` must equal the CSS track's extra height, or
+  scroll position and content desync).
+- **Sky-to-black starts sooner again** (`js/intro-scroll.js`): `DARKEN_START_T` 0.7 -> 0.55, so the
+  darken now overlaps the scrub's last 45% instead of 30% -- still needs zero scroll distance of its
+  own (reaches full black exactly as the frame-scrub itself finishes, same mechanism as part 2).
+- **Post-blackout hold cut to near-nothing**: `.intro-scroll-track`'s extra post-scrub distance
+  250px -> 80px, directly answering "wait only a very small amount of scroll" before #identity
+  begins.
+- **Identity pushed larger again**: `.identity-name` `clamp(4.4rem,15vw,11.5rem)` ->
+  `clamp(4.6rem,18vw,14rem)` -- now clearly, deliberately exceeds the Hero name's own 10.5rem
+  ceiling (this scene has nothing else sharing the frame with it). `.identity-content` widened
+  1140px -> 1320px, facts strip padding/gaps/font-sizes bumped again so the whole composition uses
+  more of the canvas, not just the name in isolation.
+- **About Me content replaced with the user's exact provided paragraph**, split at sentence
+  boundaries into 5 `.identity-sentence` lines (was 8 invented sentences last session) -- the
+  rendered prose is character-for-character what was given, just structured as separate elements so
+  each sentence still gets its own stagger window per the existing Split Text pattern. `js/scenes.js`
+  updated to 6 lines (heading + 5 sentences) instead of 9.
+- Verified structurally again: `node -c` on all three touched JS files, CSS brace balance, an
+  id/trackId/contentId cross-check between `js/scenes.js` and `index.html` (all resolved), confirmed
+  no leftover `line-sentence-6/7/8` references anywhere, and confirmed by direct code read that
+  `revealWords`/`revealBlock`/the easing functions/`SCENE_LERP` are byte-identical to before this
+  session -- only `buildScene()`'s own call-site numbers and `DARKEN_START_T` changed. Cumulative
+  scroll-distance reduction from the original (pre-any-of-this-work) baseline is now ~44.7% (21,900px
+  -> ~12,119px), computed directly. `mcp__claude-in-chrome` was not retried this session (already
+  failed on every retry across parts 1 and 2) -- **a live scroll-through remains the important next
+  step**, specifically to confirm the much-shorter holds still feel like a deliberate beat rather
+  than an abrupt cutoff, and that the larger 14rem name doesn't crowd the facts row at mid-range
+  viewport widths.
+
+## Completed this session (2026-07-28, part 2): whole cinematic sequence rebalanced -- ~35% less
+total scroll distance, sky-to-black starts earlier and needs no scroll distance of its own, About
+Me split into its own scene in the correct order, Identity redesigned much larger
+
+Direct follow-up to part 1 below (same day) -- user said the part 1 pass didn't match what they
+wanted: still far too much scrolling end-to-end (not just around #identity), the sky-to-black
+transition starts too late, the post-blackout hold before #identity appears is too long, the name
+is still too small, and -- the one real bug -- the About Me passage got merged *into* #identity in
+part 1 instead of becoming its own section, so the required Identity -> About Me -> Skills ->
+Availability order didn't actually exist.
+
+- **Total scroll distance cut ~35% end-to-end** (every `*-scroll-track` height, `js/intro-scroll.js`
+  `SCROLL_RANGE`, and every `range:` in `js/scenes.js`, all kept in lockstep): old total extra
+  scroll across the whole sequence was 21,900px (intro 7,900 + identity 5,400 + skills 5,200 +
+  availability 3,400); new total is 14,250px (intro 4,450 + identity 2,200 + about-me 3,400 +
+  skills 2,600 + availability 1,600) -- squarely inside the requested 30-40% range, computed and
+  verified with a small script rather than eyeballed.
+- **Sky-to-black reworked, not just shortened** (`js/intro-scroll.js`): previously the blackout only
+  started ramping *after* the full 800-frame scrub finished (`rawPx > SCROLL_RANGE`), needing a
+  further 1000px just for the ramp plus a 500px hold on top -- 1500px of pure extra scroll with
+  nothing new to look at beyond a darkening screen. Replaced `DARKEN_RANGE` with `DARKEN_START_T`
+  (0.7): the darken now rises across the scrub's own last 30% (`(targetT - 0.7) / 0.3`), reaching
+  fully black exactly when the frame-scrub itself finishes -- overlapped with footage that's already
+  empty sky by that point, so it needs zero scroll distance of its own. `.intro-scroll-track`'s CSS
+  height dropped from `100svh + 6400px + 1500px` to `100svh + 4200px + 250px`: `SCROLL_RANGE` itself
+  cut 6400->4200 (still ~5px/frame at 800 frames, the single biggest lever on total page scroll
+  length) and the post-black hold cut 500->250px, directly answering "the black pause should last
+  only a brief cinematic moment."
+- **Identity split into two scenes** (`index.html`, `css/style.css`, `js/scenes.js`): part 1
+  incorrectly merged the About Me passage into `#identity-content`, so it never appeared as a
+  distinct step in the sequence. Now `#identity` holds only the name + 4 facts (5 lines, its own
+  `identity-scroll-track`, range 2200), and a new `#about-me` section/track (range 3400) sits
+  directly after it holding the heading + 8 sentences -- giving the required Identity -> About Me
+  -> Software & Skills -> Availability order for real. `#about-me` follows the same build-hold-exit
+  mechanic as the other three scenes and deliberately has no ambient-blob background of its own
+  (`#identity` already spent that one-per-passage exception, per DESIGN.md).
+- **Identity composition redesigned, not just resized**: `.identity-name` pushed from a
+  4.2-8.8rem clamp to `clamp(4.4rem, 15vw, 11.5rem)` (line-height tightened 1 -> 0.95) -- now
+  matches/exceeds the Hero name's own 10.5rem ceiling, deliberately, since this scene has nothing
+  else sharing the frame with it anymore. `.identity-facts` rebuilt from a narrow centered vertical
+  stack into a horizontal divided strip (mono label over value, hairline `border-left` between
+  columns, `.identity-content` widened 800px -> 1140px) so it actually uses the section's width
+  instead of sitting as a small column in the middle of a big empty canvas; collapses back to a
+  plain vertical stack under 640px where dividers would wrap awkwardly.
+- **`DESIGN.md` updated deliberately alongside this** (not silently): the "Scroll-controlled scene
+  transition" bullet now describes the overlapped darken instead of a separate post-scrub ramp; the
+  "Stagger-build + group-exit scene" and "Section-scoped ambient reveal" bullets now list four
+  scenes (`#identity`, `#about-me`, `#skills`, `#availability`) instead of three, with a note on why
+  identity/about-me were split; the Colors section's pure-black exception list and the numeral-skip
+  note in Components were both updated to match.
+- Verified structurally again, not in a live browser: `node -c` on all three touched/new JS files, a
+  CSS brace-balance check, a script cross-checking every `id`/`trackId`/`contentId` string
+  `js/scenes.js` references against `index.html` (all resolved, zero duplicate ids), confirmation
+  that the four scene tracks appear in the correct DOM order, and the scroll-distance-reduction math
+  above computed directly rather than estimated. `mcp__claude-in-chrome` still failed to establish a
+  tab group in this environment on every retry (same as parts 1 and every session before it) -- a
+  throwaway Node static server was started/killed cleanly again but never got a browser attached.
+  **A live scroll-through is still the important next step**, specifically to confirm: the
+  overlapped darken doesn't read as abrupt at the exact 0.7 threshold, `#identity`'s new facts strip
+  doesn't look cramped/uneven at odd mid-range viewport widths, the tighter overall pacing still
+  feels cinematic rather than rushed, and whether the new range numbers (2200/3400/2600/1600) want
+  further tuning once someone actually scrolls it.
+
+## Completed this session (2026-07-28, part 1): #identity composition scaled up, pacing tightened, About Me
+rewritten as a longer personal design philosophy
+
+Direct follow-up to the previous session's #identity/#skills/#availability build. User felt the
+identity block read as visually small/lost on the full-bleed canvas, the scroll distance before
+#skills felt too long, and asked for a longer About Me passage written as a personal philosophy
+(not resume bullets) covering 7 specific points.
+
+- **Typography/spacing scale-up** (`css/style.css`, `#identity` only -- `#skills`/`#availability`
+  untouched): `.identity-name` `clamp(2.6rem,9vw,5.2rem)` -> `clamp(4.2rem,13vw,8.8rem)` (still
+  below the Hero name's `10.5rem` ceiling, so it reads as a strong callback, not a competing
+  focal point). `.identity-facts` gap/margin, `.identity-fact__label`/`__value` font-size,
+  `.identity-heading` font-size/margins, and `.identity-sentence` font-size/line-height all bumped
+  proportionally so the hierarchy (name > facts > heading > body) is preserved, just larger
+  end-to-end. `.identity-content` max-width `720px` -> `800px` for a less cramped composition at
+  the new type scale.
+- **About Me rewritten** (`index.html`): the previous 6 sentences replaced with 8, written as a
+  first-person design philosophy rather than a resume list, explicitly covering the user's 7
+  requested points (continuous self-development beyond university, exploring other creative
+  industries/technologies, learning has no finish line, every project is a chance to learn
+  something new, enjoying experimenting with/improving workflows, creativity + technical
+  problem-solving combined, the goal being memorable/meaningful/visually-refined digital
+  experiences). New elements `#line-sentence-7`/`#line-sentence-8` added inside `.identity-about`.
+- **Pacing retuned** (`js/scenes.js`, `css/style.css`): `identityScene`'s `range` `7000` -> `5400`px
+  and `exitStart` `0.78` -> `0.75`, stagger `step`/`span` `0.038`/`0.09` -> `0.032`/`0.08` to fit
+  the now-14 lines (was 12) into a tighter build. Net effect: a snappier per-line cascade *and*
+  meaningfully less empty scroll distance between the identity build finishing and #skills
+  beginning, while the build-hold-exit proportions (and the group-exit mechanic itself) are
+  unchanged. `skills`/`availability` scene ranges were left as-is -- not what was flagged.
+- Verified structurally, not in a live browser: `node -c` on all three touched JS files, a CSS
+  brace-balance check, and a script that cross-checked every `id`/`trackId`/`contentId` string
+  `js/scenes.js` references against `index.html` (all resolved, zero duplicate ids, confirmed 8
+  `line-sentence-*` ids present). `mcp__claude-in-chrome` failed to establish a tab group again in
+  this environment (`tabs_context_mcp` errored on every retry, same as every prior session's note)
+  -- a throwaway Node static server was started/killed cleanly (port confirmed freed via
+  `netstat`) but never got a browser attached to it. **Next session (or the user testing locally)
+  should scroll through #identity end-to-end** to confirm the new name/type scale doesn't overflow
+  at narrow viewports, the 8-sentence About Me still reads as an unhurried cascade rather than
+  rushed at the tighter 0.032 step, and whether `range:5400`/`exitStart:0.75` actually feels right
+  or wants further tuning -- reasoned numbers, not measured against real scroll feel.
+
+## Completed this session (2026-07-27, part 2): the placeholder #reveal section replaced with
+three real cinematic scenes (#identity/about, #skills, #availability) -- real content, a new
+stagger-build + Split-Text + group-exit reveal engine, and real skill-logo assets
+
+Continuation of part 1 (below), same day. User wanted the cinematic experience to keep going past
+the blackout: a calm black pause, then the identity/about content builds itself in (not a
+traditional About section), then Software & Skills, then Availability -- everything scroll-
+controlled, reversible, no hard cuts, "one continuous scene" not stacked pages. Explicitly not a
+one-shot: three design calls were clarified with the user first via AskUserQuestion before writing
+code (see below), since they intersected existing DESIGN.md rules.
+
+- **Resolved conflicts with the user before building:**
+  1. DESIGN.md bans a second shiny-text moment per page (Hero's `KAAN ACAR` already uses it) but
+     the user asked for shine on "important headings and my name." User chose: name only (one
+     moment, matching the existing scarcity rule), section headings get hierarchy from Poster-scale
+     typography instead.
+  2. Initial plan was to reuse the identity intro's own "rotate through center" title mechanism for
+     the About text. User rejected this explicitly: wanted the *whole* identity block (name, facts,
+     About Me sentences) to stagger-build top-to-bottom as ONE accumulating composition, hold fully
+     assembled, then the entire block exit *together* as one unit -- not sentence-by-sentence
+     rotation. Skills should follow "the same cinematic philosophy" immediately after.
+  3. No real logo assets existed yet for the 6 software skills; user chose to provide the actual
+     files rather than accept monogram placeholders -- see below, they arrived mid-session.
+- **`css/style.css`'s shiny-text refactor**: extracted the gradient/sweep treatment out of
+  `.hero-name .row` into a standalone `.shiny-text` class (byte-identical computed styles for the
+  Hero -- confirmed by keeping `.row` for its own layout role and moving only the gradient/animation
+  rules). `index.html`'s hero spans gained `class="row shiny-text"`; the new `#identity`'s "KAAN
+  ACAR" is the only other place it's used. DESIGN.md's Components section now documents this as the
+  hard ceiling ("don't add a third use without removing this line first").
+- **New reveal engine, `js/scenes.js`** (new file, not folded into `js/intro-scroll.js` --
+  deliberately: this content has nothing to do with the Blender footage or its frame-loading
+  concerns, so it's mounted independently from `js/script.js`). Generalizes into a reusable
+  `buildScene()`/`stagger()` pair used identically for all three scenes:
+  - Every line of content gets its own scroll window (`stagger()` computes `start`/`end` per line
+    index with deliberate overlap so consecutive lines cascade rather than step).
+  - Plain-text lines (name, headings, About Me sentences) are split into words at build time
+    (`splitWords`) and each word gets its own tiny cascade sub-window within its line's own window
+    (`revealWords`) -- a vanilla-CSS take on React Bits' Split Text
+    (https://reactbits.dev/text-animations/split-text). Structured content (fact rows, skill cards,
+    availability items) reveals as a whole block instead (`revealBlock`) -- word-splitting a
+    "label: value" row would read as noise, confirmed against the user's own "About text should
+    split" ask being specifically about prose, not data rows.
+  - Once a scene's own scroll position passes `exitStart`, the *container* (not individual lines)
+    fades/blurs/lifts out together as one unit, reaching fully hidden by the track's own end --
+    this is what makes `#identity` -> `#skills` -> `#availability` read as one continuous scene
+    rather than three stacked sections, and is the piece that was rebuilt after the user's
+    clarification #2 above.
+  - Skill cards additionally get a `makeRingUpdater()` closure wired onto their line entry: each
+    ring's stroke-dasharray/dashoffset is computed from the card's own `data-score` and tied to the
+    exact same per-line progress driving its opacity, so the ring visibly fills in as the card
+    arrives rather than snapping in already-complete.
+  - Reduced motion: the whole module no-ops immediately (`if (reducedMotion) return`); every track
+    collapses to `100svh` and every line/word defaults fully visible via `css/style.css`'s own
+    `@media (prefers-reduced-motion: reduce)` rules, same opt-out convention as every prior scene.
+- **Content, written this session** (`index.html`):
+  - Identity facts: Age 21, Education Bahçeşehir University, Degree Visual Communication Design,
+    Current Status Starting 3rd Year.
+  - About Me: 6 sentences, professional-but-personal tone per the user's brief (continuous
+    self-improvement beyond university, exploring new creative technology, daily learning,
+    technical+creative growth together, experimenting with workflows, seeking better/modern
+    solutions) -- confident phrasing, no bullet-point feel in the final prose.
+  - Software & Skills: Blender 5/10, After Effects 7/10, Premiere Pro 7/10, Adobe Illustrator 8/10,
+    Claude Code 9/10, Figma 7/10 -- each a `.skill-card` with a circular logo badge (soft blurred
+    glow tinted in that software's own accent color behind it), a name label, and the confidence
+    ring above, not a progress bar.
+  - Availability: "Open For" + Internships / Freelance Projects / Full-Time Opportunities.
+- **Skill logo assets**: initially wired to expect user-provided SVGs at `assets/skills/*.svg` with
+  an `onerror`-driven fallback (a colored-glow circle + two-letter monogram) in case files were
+  never provided. Mid-session the user said they'd added official assets -- they actually landed at
+  `./logo assest/` (note: literal folder name, typo + space, not `assets/logo-assets/` as described)
+  as **PNGs, not SVGs**: `blender logo.png`, `after effects logo.png`, `premier pro logo.png`,
+  `adobe-illustrator-seeklogo.png`, `claude-seeklogo.png`, `figma logo.png`. Verified each file
+  (PNG dimensions + color type) before wiring: all have real alpha channels (transparent-background
+  logo marks, not flattened square icons), confirming they'd sit cleanly inside the circular glow
+  badge via `object-fit:contain`. Copied (not moved -- originals untouched) into
+  `assets/skills/{blender,after-effects,premiere-pro,illustrator,claude-code,figma}.png` (clean
+  kebab-case, same convention as every prior asset-drop session) and updated `index.html`'s `<img>`
+  `src`s from the placeholder `.svg` paths to these real `.png` ones. The monogram-fallback markup
+  and CSS were left in place as a safety net (`onerror` still degrades gracefully) rather than
+  removed, since it costs nothing to keep and protects against any future path going stale.
+- **`DESIGN.md` updated deliberately alongside this** (not silently): the shiny-text ceiling (two
+  uses total, name-only going forward), the stagger-build + group-exit scene pattern, the Split
+  Text line component (and its explicit non-use on structured content), the skill confidence ring
+  component (brand color allowed in exactly two narrow spots per card, never a flat block), and a
+  correction to the "#reveal" placeholder references (renamed throughout to `#identity`/`#skills`/
+  `#availability`, now three numeral-less cinematic set-pieces instead of one).
+- **Not verified in a live browser this session either** -- `mcp__claude-in-chrome` was not
+  available in this environment (same limitation as part 1). Verified instead via: `node -c` on all
+  three touched/new JS files, a CSS brace-balance check, a duplicate-id check across `index.html`,
+  and a cross-check that every element id `js/scenes.js` references by string actually exists in
+  the HTML (29/29 resolved). **Scrolling through the real page locally is the important next step**
+  -- specifically to check: the identity block's 12 lines don't visually overflow a short viewport
+  before the exit phase begins, the per-word Split Text cascade reads as elegant rather than jittery
+  at real frame rates, the skill cards' grid wraps sensibly at mobile widths, and whether the
+  chosen scroll distances (`IDENTITY_RANGE=7000`, `SKILLS_RANGE=5200`, `AVAILABILITY_RANGE=3400` in
+  `js/scenes.js`) feel unhurried or need retuning -- all first-pass numbers, not measured against
+  real scroll feel.
+
+## Completed this session (2026-07-27, part 1): Hero->Blender visual continuity (entry veil) + the
 Blender footage's own empty-sky ending now bleeds into a scroll-controlled blackout, followed by
 a new placeholder-content #reveal section that builds itself back up from scroll alone
 

@@ -8,7 +8,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400&family=Geist:wght@500;600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400&family=Geist:wght@500;600;700;800&family=Inter:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -46,19 +46,53 @@
 </div>
 <div class="frame-bar frame-bottom" id="frame-bottom">
   <span>ISTANBUL, TR</span>
-  <span id="scroll-pct">SCROLL 00%</span>
 </div>
 
+<!-- Fast Travel (below) is now the site's only navigation -- the header nav (Work/About/Contact)
+     was removed deliberately, not just visually hidden; only the KA logo remains as a plain
+     scroll-to-top link. -->
 <header id="site-header">
   <a class="logo" href="#top">KA</a>
-  <nav>
-    <ul>
-      <li><a href="#work">Work</a></li>
-      <li><a href="#about">About</a></li>
-      <li><a href="#contact">Contact</a></li>
-    </ul>
-  </nav>
 </header>
+
+<!-- Fast Travel: now the site's only navigation (the header nav above has been removed entirely,
+     not just this component added alongside it). Fixed at the viewport's left-center for the whole
+     page. Hover (desktop) or tap (mobile/tablet) opens a radial Option Wheel -- a vanilla-CSS/JS
+     take on React Bits' Option Wheel (https://reactbits.dev/components/option-wheel), reimplemented
+     rather than pulled in, same convention as this project's other React Bits ports -- fanned across
+     a right-opening arc rather than a full ring, since the trigger sits near the left edge and a
+     full circle would clip off-screen. Each item auto-connects to an existing section: My Projects
+     -> #work, Who I Am -> #about (the identity intro's own baked "WHO I AM" reveal, reset to frame
+     0), Identity -> #identity (name + facts only -- the first black section right after the Blender
+     cinematic, deliberately distinct from About Me's own prose passage below it), About Me ->
+     #about-me, Software & Skills -> #skills, Open For -> #availability, Social Media -> #contact
+     (the existing Flowing Menu scene, LinkedIn included there). See js/fast-travel.js for the
+     open/close logic and the cinematic-eased smooth scroll. -->
+<div class="fast-travel" id="fast-travel">
+  <button type="button" class="fast-travel__trigger" id="fast-travel-trigger"
+    aria-haspopup="menu" aria-expanded="false" aria-controls="fast-travel-wheel">
+    <span class="fast-travel__dot" aria-hidden="true"></span>
+    <span class="fast-travel__label">Fast Travel</span>
+  </button>
+  <div class="fast-travel__glow" aria-hidden="true"></div>
+  <div class="fast-travel__wheel" id="fast-travel-wheel" role="menu" aria-label="Fast Travel destinations">
+    <div class="fast-travel__hit-zone" aria-hidden="true"></div>
+    <a class="fast-travel__item" role="menuitem" href="#work" data-target="#work" style="--i:0" tabindex="-1">
+      <span class="fast-travel__item-dot" aria-hidden="true"></span>My Projects</a>
+    <a class="fast-travel__item" role="menuitem" href="#about" data-target="#about" style="--i:1" tabindex="-1">
+      <span class="fast-travel__item-dot" aria-hidden="true"></span>Who I Am</a>
+    <a class="fast-travel__item" role="menuitem" href="#identity" data-target="#identity" style="--i:2" tabindex="-1">
+      <span class="fast-travel__item-dot" aria-hidden="true"></span>Identity</a>
+    <a class="fast-travel__item" role="menuitem" href="#about-me" data-target="#about-me" style="--i:3" tabindex="-1">
+      <span class="fast-travel__item-dot" aria-hidden="true"></span>About Me</a>
+    <a class="fast-travel__item" role="menuitem" href="#skills" data-target="#skills" style="--i:4" tabindex="-1">
+      <span class="fast-travel__item-dot" aria-hidden="true"></span>Software &amp; Skills</a>
+    <a class="fast-travel__item" role="menuitem" href="#availability" data-target="#availability" style="--i:5" tabindex="-1">
+      <span class="fast-travel__item-dot" aria-hidden="true"></span>Open For</a>
+    <a class="fast-travel__item" role="menuitem" href="#contact" data-target="#contact" style="--i:6" tabindex="-1">
+      <span class="fast-travel__item-dot" aria-hidden="true"></span>Social Media</a>
+  </div>
+</div>
 
 <!-- Scroll runway for the hero background video: #hero pins via position:sticky while this
      track scrolls underneath it, giving the video ~1700px of scroll to play through before the
@@ -86,8 +120,8 @@
   <div class="hero-content" id="hero-content">
     <div class="hero-name-wrap" id="hero-name-wrap">
       <h1 class="hero-name">
-        <span class="row" data-row="1">KAAN</span>
-        <span class="row" data-row="2">ACAR</span>
+        <span class="row shiny-text" data-row="1">KAAN</span>
+        <span class="row shiny-text" data-row="2">ACAR</span>
       </h1>
     </div>
 
@@ -132,7 +166,7 @@
      10-230); the footage's own baked "WHO I AM" reveal and everything after it plays completely
      untouched, exactly as rendered. The track's own extra scroll distance now runs past the last
      frame too -- see .intro-blackout below -- so the footage's own empty-sky ending bleeds into a
-     scroll-controlled blackout rather than cutting straight to #reveal. -->
+     scroll-controlled blackout rather than cutting straight to #identity. -->
 <div class="intro-scroll-track" id="intro-scroll-track">
 <section id="about">
   <div class="intro-bg" aria-hidden="true">
@@ -152,57 +186,247 @@
        alpha-compositing a flat black over sky blue naturally sweeps through the same "deeper blue
        -> almost black" progression a real sky-darkening grade would, with no extra color keyframing
        needed. Holds at opacity:1 for a further stretch of scroll (still the same pinned #about,
-       nothing new mounts yet) before the section releases into #reveal below. -->
+       nothing new mounts yet) before the section releases into #identity below. -->
   <div class="intro-blackout" id="intro-blackout" aria-hidden="true"></div>
 </section>
 </div>
 
-<!-- Cinematic reveal (content not yet designed -- see js/intro-scroll.js and TODO.md): continues
-     directly out of the blackout above with zero hand-off cut (#reveal opens already pure black,
-     matching the blackout's held end-state exactly). Pins the same way #hero/#about do while its
-     own scroll range first fades in a section-scoped reuse of the site's existing ambient-blob
-     mechanism (.ambient-blob -- see #ambient-bg in css/style.css and the mouse-parallax loop in
-     js/script.js -- so these blobs get the exact same drift/parallax for free, not a new system),
-     then fades/settles in .reveal-content once the background is already meaningfully underway.
-     Both are pure functions of this track's own scroll position, same "no CSS transition, direct
-     per-frame write" approach as the rest of this cinematic sequence. .reveal-content is an
-     intentional placeholder -- only the reveal mechanics are meant to be final here. -->
-<div class="reveal-scroll-track" id="reveal-scroll-track">
-<section id="reveal">
-  <h2 class="sr-only">Introduction</h2>
-  <div class="reveal-bg" id="reveal-bg" aria-hidden="true">
-    <div class="ambient-blob reveal-blob reveal-blob-1" data-depth="0.8"></div>
-    <div class="ambient-blob reveal-blob reveal-blob-2" data-depth="1.1"></div>
-    <div class="ambient-blob reveal-blob reveal-blob-3" data-depth="0.6"></div>
+<!-- Cinematic identity scene: continues directly out of the blackout above with zero hand-off cut
+     (#identity opens already pure black, matching the blackout's held end-state exactly). Pins the
+     same way #hero/#about do. See js/scenes.js for the reveal engine: an ambient-blob background
+     (section-scoped reuse of the site-wide mechanism, same precedent as #hero-prism) fades in
+     first, then the name and each fact -- split into words, each word its own tiny scroll-driven
+     cascade (a vanilla-CSS take on React Bits' Split Text) -- stagger-build top to bottom as one
+     continuous composition. Once fully built, the whole thing holds (reading time), then the
+     entire .identity-content container fades/lifts out together as one unit before #about-me
+     begins the same way. Nothing here is a CSS transition or a timer -- every value is a pure
+     function of this track's own scroll position, so it reverses exactly on scroll-up. Deliberately
+     just name + facts now -- the longer About Me passage lives in its own #about-me scene right
+     after this one, so the giant name has the frame to itself. -->
+<div class="identity-scroll-track" id="identity-scroll-track">
+<section id="identity">
+  <div class="identity-bg" id="identity-bg" aria-hidden="true">
+    <div class="ambient-blob identity-blob identity-blob-1" data-depth="0.8"></div>
+    <div class="ambient-blob identity-blob identity-blob-2" data-depth="1.1"></div>
+    <div class="ambient-blob identity-blob identity-blob-3" data-depth="0.6"></div>
   </div>
-  <div class="reveal-content" id="reveal-content">
-    <!-- Placeholder only -- final copy (software/skills/services/availability) is a future session. -->
-    <p class="reveal-placeholder">More to come.</p>
+  <h2 class="sr-only">Identity</h2>
+  <div class="identity-content" id="identity-content">
+    <p class="identity-name shiny-text" id="line-name">KAAN ACAR</p>
+    <div class="identity-facts">
+      <p class="identity-fact" id="line-fact-1"><span class="identity-fact__label">Age</span><span class="identity-fact__value">21 Years Old</span></p>
+      <p class="identity-fact" id="line-fact-2"><span class="identity-fact__label">Education</span><span class="identity-fact__value">Bahçeşehir University</span></p>
+      <p class="identity-fact" id="line-fact-3"><span class="identity-fact__label">Degree</span><span class="identity-fact__value">Visual Communication Design</span></p>
+      <p class="identity-fact" id="line-fact-4"><span class="identity-fact__label">Current Status</span><span class="identity-fact__value">Starting 3rd Year</span></p>
+    </div>
   </div>
 </section>
 </div>
 
-<section id="contact">
-  <div class="section-head reveal">
-    <span class="num">03</span>
-    <h2>Let's talk</h2>
-    <div class="rule"></div>
-  </div>
-  <div class="contact-main reveal">
-    <a class="contact-email" href="mailto:hello@kaanacar.com">hello@kaanacar.com</a>
-    <div class="contact-links">
-      <a href="#">Instagram</a>
-      <a href="#">Behance</a>
-      <a href="#">LinkedIn</a>
-      <a href="#">Resume (PDF)</a>
+<!-- Cinematic About Me scene: the longer personal-design-philosophy passage, split out of
+     #identity into its own scene so it gets its own build-hold-exit rather than fighting the name
+     for pacing. Sits between #identity and #skills per the required Identity -> About Me ->
+     Software & Skills -> Availability order. Deliberately redesigned away from the rest of the
+     site's italic-serif "editorial caption" register (Fraunces) into a large-scale Inter Light
+     treatment with no visible heading -- an explicit, scoped exception to the Display family's
+     usual "about-page copy" role (see DESIGN.md Typography), because this passage is meant to read
+     as a modern editorial statement, not a quote. `.about-me-rays` is a vanilla-CSS take on React
+     Bits' Side Rays (https://reactbits.dev/backgrounds/side-rays), the same "own reimplementation,
+     not the library" convention already used for Split Text and Shiny Text elsewhere in this file
+     -- a second, distinct ambient exception alongside #identity's blob glow (see DESIGN.md
+     Components), justified the same way: explicit, scoped, one per section, never layered with
+     another glow effect in the same passage. -->
+<div class="about-me-scroll-track" id="about-me-scroll-track">
+<section id="about-me">
+  <h2 class="sr-only">About Me</h2>
+  <div class="about-me-rays" id="about-me-rays" aria-hidden="true"></div>
+  <div class="about-me-content" id="about-me-content">
+    <div class="about-me-copy">
+      <p class="about-me-line" id="line-sentence-1">Beyond university, I continuously invest in developing myself across different creative disciplines.</p>
+      <p class="about-me-line" id="line-sentence-2">I believe that becoming a strong visual designer requires more than mastering software—it requires curiosity, experimentation, and consistency.</p>
+      <p class="about-me-line" id="line-sentence-3">Every project is an opportunity to explore new workflows, discover better solutions, and push my creative boundaries.</p>
+      <p class="about-me-line" id="line-sentence-4">Whether I'm building interactive web experiences, motion graphics, branding systems, or 3D visuals, I approach each challenge with the mindset of learning something new.</p>
+      <p class="about-me-line" id="line-sentence-5">My goal is not simply to create visually appealing work, but to design meaningful digital experiences that leave a lasting impression.</p>
     </div>
   </div>
 </section>
+</div>
 
-<footer>
-  <span>© 2026 Kaan Acar — All rights reserved</span>
-  <button id="back-to-top">Back to top ↑</button>
-</footer>
+<!-- Cinematic software/skills scene: same build-hold-exit philosophy as #identity/#about-me above
+     (see js/scenes.js) -- opens on the same shared black the previous scene just faded to, so the
+     hand-off is seamless. No ambient blobs of its own (three sections in a row each sprouting a
+     glowing background would compete with the content and read as noisy, not premium) -- the
+     confidence rings and per-card brand-color glow already carry the visual interest. Logos are
+     the user's own official PNGs (originally dropped at "logo assest/", copied here as
+     assets/skills/*.png with clean kebab-case names); `onerror` swaps in `.is-missing` so a card
+     still degrades to the colored glow + initials fallback rather than a broken image if a path
+     ever goes stale. -->
+<div class="skills-scroll-track" id="skills-scroll-track">
+<section id="skills">
+  <h2 class="sr-only">Software &amp; Skills</h2>
+  <div class="skills-content" id="skills-content">
+    <h3 class="identity-heading" id="line-skills-heading">Software &amp; Skills</h3>
+    <div class="skills-grid" id="skills-grid">
+      <div class="skill-card" id="line-skill-1" style="--skill-color:#F5792A;">
+        <div class="skill-badge">
+          <span class="skill-badge__fallback">Bl</span>
+          <img src="assets/skills/blender.png" alt="Blender" class="skill-badge__logo" onerror="this.classList.add('is-missing')">
+        </div>
+        <p class="skill-card__name">Blender</p>
+        <div class="skill-ring" data-score="5" aria-label="Blender confidence 5 out of 10">
+          <svg viewBox="0 0 64 64"><circle class="skill-ring__track" cx="32" cy="32" r="27"></circle><circle class="skill-ring__fill" id="ring-skill-1" cx="32" cy="32" r="27"></circle></svg>
+          <span class="skill-ring__value">5<small>/10</small></span>
+        </div>
+      </div>
+      <div class="skill-card" id="line-skill-2" style="--skill-color:#9999FF;">
+        <div class="skill-badge">
+          <span class="skill-badge__fallback">Ae</span>
+          <img src="assets/skills/after-effects.png" alt="After Effects" class="skill-badge__logo" onerror="this.classList.add('is-missing')">
+        </div>
+        <p class="skill-card__name">After Effects</p>
+        <div class="skill-ring" data-score="7" aria-label="After Effects confidence 7 out of 10">
+          <svg viewBox="0 0 64 64"><circle class="skill-ring__track" cx="32" cy="32" r="27"></circle><circle class="skill-ring__fill" id="ring-skill-2" cx="32" cy="32" r="27"></circle></svg>
+          <span class="skill-ring__value">7<small>/10</small></span>
+        </div>
+      </div>
+      <div class="skill-card" id="line-skill-3" style="--skill-color:#7B68EE;">
+        <div class="skill-badge">
+          <span class="skill-badge__fallback">Pr</span>
+          <img src="assets/skills/premiere-pro.png" alt="Premiere Pro" class="skill-badge__logo" onerror="this.classList.add('is-missing')">
+        </div>
+        <p class="skill-card__name">Premiere Pro</p>
+        <div class="skill-ring" data-score="7" aria-label="Premiere Pro confidence 7 out of 10">
+          <svg viewBox="0 0 64 64"><circle class="skill-ring__track" cx="32" cy="32" r="27"></circle><circle class="skill-ring__fill" id="ring-skill-3" cx="32" cy="32" r="27"></circle></svg>
+          <span class="skill-ring__value">7<small>/10</small></span>
+        </div>
+      </div>
+      <div class="skill-card" id="line-skill-4" style="--skill-color:#FF9A00;">
+        <div class="skill-badge">
+          <span class="skill-badge__fallback">Ai</span>
+          <img src="assets/skills/illustrator.png" alt="Adobe Illustrator" class="skill-badge__logo" onerror="this.classList.add('is-missing')">
+        </div>
+        <p class="skill-card__name">Adobe Illustrator</p>
+        <div class="skill-ring" data-score="8" aria-label="Adobe Illustrator confidence 8 out of 10">
+          <svg viewBox="0 0 64 64"><circle class="skill-ring__track" cx="32" cy="32" r="27"></circle><circle class="skill-ring__fill" id="ring-skill-4" cx="32" cy="32" r="27"></circle></svg>
+          <span class="skill-ring__value">8<small>/10</small></span>
+        </div>
+      </div>
+      <div class="skill-card" id="line-skill-5" style="--skill-color:#D97757;">
+        <div class="skill-badge">
+          <span class="skill-badge__fallback">Cc</span>
+          <img src="assets/skills/claude-code.png" alt="Claude Code" class="skill-badge__logo" onerror="this.classList.add('is-missing')">
+        </div>
+        <p class="skill-card__name">Claude Code</p>
+        <div class="skill-ring" data-score="9" aria-label="Claude Code confidence 9 out of 10">
+          <svg viewBox="0 0 64 64"><circle class="skill-ring__track" cx="32" cy="32" r="27"></circle><circle class="skill-ring__fill" id="ring-skill-5" cx="32" cy="32" r="27"></circle></svg>
+          <span class="skill-ring__value">9<small>/10</small></span>
+        </div>
+      </div>
+      <div class="skill-card" id="line-skill-6" style="--skill-color:#A259FF;">
+        <div class="skill-badge">
+          <span class="skill-badge__fallback">Fi</span>
+          <img src="assets/skills/figma.png" alt="Figma" class="skill-badge__logo" onerror="this.classList.add('is-missing')">
+        </div>
+        <p class="skill-card__name">Figma</p>
+        <div class="skill-ring" data-score="7" aria-label="Figma confidence 7 out of 10">
+          <svg viewBox="0 0 64 64"><circle class="skill-ring__track" cx="32" cy="32" r="27"></circle><circle class="skill-ring__fill" id="ring-skill-6" cx="32" cy="32" r="27"></circle></svg>
+          <span class="skill-ring__value">7<small>/10</small></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- Cinematic availability scene: closes the identity/skills arc with the same build-hold-exit
+     philosophy, then releases its pin into the ordinary (non-pinned) #contact section below --
+     the same kind of hand-off #hero already makes into #work, just dark-to-dark instead of
+     dark-to-bright, so no extra bridging is needed there. -->
+<div class="availability-scroll-track" id="availability-scroll-track">
+<section id="availability">
+  <h2 class="sr-only">Availability</h2>
+  <div class="availability-content" id="availability-content">
+    <h3 class="identity-heading" id="line-avail-heading">Open For</h3>
+    <div class="availability-list" id="availability-list">
+      <p class="availability-item" id="line-avail-1">Internships</p>
+      <p class="availability-item" id="line-avail-2">Freelance Projects</p>
+      <p class="availability-item" id="line-avail-3">Full-Time Opportunities</p>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- Final cinematic contact scene -- replaces the old "Let's talk" section + <footer> entirely, per
+     explicit direction that this be the closing beat of the same continuous black passage running
+     from the Blender footage through Availability, not a new "page." No visible section head, pure
+     #000 (matching #identity/#about-me/#skills/#availability, see DESIGN.md Colors), no separate
+     footer chrome below it -- this section IS the page's last element.
+     A vanilla-CSS/JS take on React Bits' Flowing Menu
+     (https://reactbits.dev/components/flowing-menu) -- source read directly from
+     github.com/DavidHDev/react-bits before porting (same "reimplement the effect, don't pull in
+     the library" convention as Split Text/Shiny Text/Side Rays elsewhere in this file). Row labels
+     are always visible (the source's own default state); hovering (desktop) or tapping (touch,
+     see js/flow-menu.js) reveals a marquee band sliding in from whichever edge the cursor entered
+     nearest, carrying that platform's logo + handle looping horizontally over a soft, muted
+     brand-color gradient -- deliberately not the source's flat white marquee background, see
+     DESIGN.md Components for why brand color is allowed here specifically (same carve-out as the
+     Skills section's per-card brand glow). LinkedIn's href is a placeholder ("#") -- no profile
+     URL was provided, so none was invented; swap in the real one whenever it's available. -->
+<section id="contact">
+  <div class="flow-menu-wrap">
+    <nav class="flow-menu" aria-label="Contact">
+
+      <div class="flow-item" data-brand="instagram">
+        <a class="flow-item__link" href="https://www.instagram.com/kaanaccr/" target="_blank" rel="noopener noreferrer">INSTAGRAM</a>
+        <div class="flow-marquee" data-edge="bottom" aria-hidden="true">
+          <div class="flow-marquee__track">
+            <span class="flow-marquee__part flow-marquee__seed">
+              <img class="flow-marquee__logo" src="assets/contact/instagram.png" alt="">
+              <span class="flow-marquee__text">@kaanaccr</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-item" data-brand="teams">
+        <a class="flow-item__link" href="mailto:kaan.acar@bahcesehir.edu.tr">SCHOOL MAIL</a>
+        <div class="flow-marquee" data-edge="bottom" aria-hidden="true">
+          <div class="flow-marquee__track">
+            <span class="flow-marquee__part flow-marquee__seed">
+              <img class="flow-marquee__logo" src="assets/contact/teams.png" alt="">
+              <span class="flow-marquee__text">kaan.acar@bahcesehir.edu.tr</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-item" data-brand="gmail">
+        <a class="flow-item__link" href="mailto:acarkaan768@gmail.com">MAIN MAIL</a>
+        <div class="flow-marquee" data-edge="bottom" aria-hidden="true">
+          <div class="flow-marquee__track">
+            <span class="flow-marquee__part flow-marquee__seed">
+              <img class="flow-marquee__logo" src="assets/contact/gmail.png" alt="">
+              <span class="flow-marquee__text">acarkaan768@gmail.com</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-item" data-brand="linkedin">
+        <a class="flow-item__link" href="https://www.linkedin.com/in/kaan-acar-b93b703b6?utm_source=share_via&amp;utm_content=profile&amp;utm_medium=member_ios" target="_blank" rel="noopener noreferrer">LINKEDIN</a>
+        <div class="flow-marquee" data-edge="bottom" aria-hidden="true">
+          <div class="flow-marquee__track">
+            <span class="flow-marquee__part flow-marquee__seed">
+              <img class="flow-marquee__logo" src="assets/contact/linkedin.png" alt="">
+              <span class="flow-marquee__text">Kaan Acar</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+    </nav>
+  </div>
+</section>
 
 <!-- self-hosted, no CDN -- used by the loader's crowd-canvas only, same vendoring convention as assets/vendor/pdfjs -->
 <script src="assets/vendor/gsap/gsap.min.js"></script>

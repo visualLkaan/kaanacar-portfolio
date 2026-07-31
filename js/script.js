@@ -1,6 +1,7 @@
 // ---- Setup ----
 var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 var header = document.getElementById('site-header');
+var fastTravel = document.getElementById('fast-travel');
 var frameTop = document.getElementById('frame-top');
 var frameBottom = document.getElementById('frame-bottom');
 
@@ -382,6 +383,7 @@ function getProjectPalette(project) {
     loader.style.display = 'none';
     hero.classList.add('show');
     header.classList.add('show');
+    if (fastTravel) fastTravel.classList.add('show');
     return;
   }
 
@@ -551,6 +553,7 @@ function getProjectPalette(project) {
     loader.style.display = 'none';
     hero.classList.add('show');
     header.classList.add('show');
+    if (fastTravel) fastTravel.classList.add('show');
   };
   img.src = config.src;
 
@@ -659,6 +662,7 @@ function getProjectPalette(project) {
     window.removeEventListener('resize', resize);
     hero.classList.add('show');
     header.classList.add('show');
+    if (fastTravel) fastTravel.classList.add('show');
 
     var tl = gsap.timeline({
       onComplete: function () {
@@ -980,6 +984,39 @@ function getProjectPalette(project) {
   });
 })();
 
+// ---- Post-blackout scenes (identity/about, software & skills, availability): lazily imported,
+// same code-split convention as the Prism/intro mounts above. Independent of intro-scroll.js --
+// these scenes only depend on their own tracks' scroll position, not on the Blender footage having
+// loaded -- so it's mounted separately rather than nested inside the intro's own init. See
+// js/scenes.js for the reveal engine; that module itself no-ops under reducedMotion. ----
+(function () {
+  var mount = document.getElementById('identity-content');
+  if (!mount) return;
+  import('./scenes.js').then(function (mod) {
+    mod.initScenes();
+  });
+})();
+
+// ---- Contact scene (flowing-menu-style hover/tap reveal): lazily imported, same code-split
+// convention as the mounts above. See js/flow-menu.js. ----
+(function () {
+  var mount = document.querySelector('.flow-menu');
+  if (!mount) return;
+  import('./flow-menu.js').then(function (mod) {
+    mod.initFlowMenu();
+  });
+})();
+
+// ---- Fast Travel (independent quick-nav radial wheel): lazily imported, same code-split
+// convention as the mounts above. See js/fast-travel.js. ----
+(function () {
+  var mount = document.getElementById('fast-travel');
+  if (!mount) return;
+  import('./fast-travel.js').then(function (mod) {
+    mod.initFastTravel();
+  });
+})();
+
 // ---- Letterbox frame bars: retract once past hero ----
 (function () {
   var hero = document.getElementById('hero');
@@ -1000,18 +1037,6 @@ function getProjectPalette(project) {
   }, { threshold: 0.35 });
 
   obs.observe(hero);
-})();
-
-// ---- Scroll progress in bottom frame bar ----
-(function () {
-  var scrollPctEl = document.getElementById('scroll-pct');
-  if (!scrollPctEl) return;
-
-  window.addEventListener('scroll', function () {
-    var h = document.documentElement;
-    var pct = Math.round((h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100);
-    scrollPctEl.textContent = 'SCROLL ' + String(pct).padStart(2, '0') + '%';
-  }, { passive: true });
 })();
 
 // ---- Scroll reveal for sections ----
@@ -1969,13 +1994,4 @@ var openProjectPage; // assigned below; called by the Work carousel when a card 
   }
 
   buildRing();
-})();
-
-// ---- Back to top ----
-(function () {
-  var btn = document.getElementById('back-to-top');
-  if (!btn) return;
-  btn.addEventListener('click', function () {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  });
 })();
