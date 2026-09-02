@@ -12,9 +12,11 @@
 //      liquid glass this replaces, nothing here reacts to the Work carousel's extracted colors, so
 //      the hero's atmosphere never shifts underneath the visitor.
 //   2. restraint: glow/bloom/noise/color-frequency/time-scale are all tuned down from the
-//      reference's defaults, and the raymarch step count is cut from 100 to 64, so the effect
-//      reads as calm ambient light behind the type rather than a showpiece, and stays cheap enough
-//      to hold 60fps as a full-bleed hero layer.
+//      reference's defaults, and the raymarch step count is cut from 100 to 64 by default, so the
+//      effect reads as calm ambient light behind the type rather than a showpiece, and stays cheap
+//      enough to hold 60fps as a full-bleed hero layer. The step count (`opts.steps`) and pixel
+//      ratio cap (`opts.maxPixelRatio`) are both further reducible per call -- see script.js's own
+//      mount site -- for lower-power devices, without changing the shape/glow/color math itself.
 import * as THREE from '../assets/vendor/three/three.module.min.js';
 
 var VERT = [
@@ -76,7 +78,7 @@ var FRAG = [
   '  float c0 = cos(wt), c1 = cos(wt + 33.0), c2 = cos(wt + 11.0);',
   '  mat2 wob = mat2(c0, c1, c2, c0);',
 
-  '  const int STEPS = 64;',
+  '  const int STEPS = %STEPS%;',
   '  for (int i = 0; i < STEPS; i++) {',
   '    p = vec3(f, z);',
   '    p.xz = p.xz * wob;',
@@ -120,10 +122,24 @@ export function createPrism(container, options) {
     colorFreq: 0.55,
     noise: 0.24,
     timeScale: 0.22,
-    alphaMul: 0.82
+    alphaMul: 0.82,
+    steps: 64, // raymarch iterations per pixel -- the FRAG source's own %STEPS% placeholder below,
+               // substituted per-call so a lower-power caller (see script.js's mount, device-tiered)
+               // can compile a cheaper shader variant. A GLSL `for` loop bound must be a compile-time
+               // constant for broad WebGL1 driver compatibility, so this is baked into the shader
+               // source string before compilation rather than passed as a uniform the loop reads --
+               // same raymarch/shape/color math either way, just fewer iterations per pixel.
+    initialScale: 1 // see currentScale below -- 1 means "no reduction," the exact prior behavior
   }, options || {});
 
-  var renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
+  // depth/stencil buffers are pure allocated-but-unused GPU memory here: this scene is a single
+  // untextured fullscreen quad with depthTest/depthWrite both off on its material and no stencil
+  // operation anywhere in this file, so the WebGLRenderer default (both enabled) allocates a
+  // depth+stencil-capable framebuffer -- often comparable in size to the color buffer itself --
+  // for buffers that are provably never read or written. Disabling both removes that allocation
+  // entirely with zero rendering-output difference; this is a correctness/waste fix, not a
+  // device-tiered quality reduction, so it applies on every tier including desktop.
+  var renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, depth: false, stencil: false });
   renderer.setClearColor(0x000000, 0);
   renderer.domElement.style.width = '100%';
   renderer.domElement.style.height = '100%';
@@ -153,7 +169,7 @@ export function createPrism(container, options) {
       uAlphaMul: { value: opts.alphaMul }
     },
     vertexShader: VERT,
-    fragmentShader: FRAG,
+    fragmentShader: FRAG.replace('%STEPS%', String(opts.steps | 0)),
     transparent: true,
     depthWrite: false,
     depthTest: false
@@ -163,13 +179,29 @@ export function createPrism(container, options) {
 
   // capped a little tighter than the site's other WebGL layers (1.75 vs 2) -- this is a full-bleed
   // 64-step-per-pixel raymarch, the heaviest shader on the page, so pixel count is the first knob
-  // worth trimming to keep it cheap
-  var pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75);
+  // worth trimming to keep it cheap. `maxPixelRatio` lets the caller cap it further (see script.js's
+  // mount call) for narrow/mobile viewports -- same shader, same step count, same algorithm, just
+  // fewer pixels raymarched; the difference is not meaningfully visible in a soft ambient glow layer
+  // at phone screen size, and desktop's own 1.75 cap is completely untouched by this.
+  var maxPixelRatio = typeof opts.maxPixelRatio === 'number' ? opts.maxPixelRatio : 1.75;
+  var pixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio);
+  // currentScale starts at opts.initialScale (phone/tablet callers pass <1, see script.js's mount)
+  // and is grown to 1 after the very first render -- see render() below. The single most expensive
+  // moment in this whole pipeline is that first renderer.render() call: it's also where WebGL
+  // lazily compiles+links the shader program for the first time, so it's the actual peak-cost
+  // instant, not the steady-state animation afterward. Rendering that one frame at a smaller
+  // backing-store size (still capped by maxPixelRatio/opts.steps either way -- this shrinks the
+  // framebuffer further on top of those, it doesn't replace them) lowers the peak simultaneous
+  // allocation right at that instant; growing to the full tier resolution starting the very next
+  // frame means there's no lasting visual difference -- one frame (~16ms) of a soft blurred
+  // ambient layer at a slightly lower internal resolution isn't perceptible. Desktop's default
+  // initialScale of 1 makes this a no-op there: same single resize() call as before, every time.
+  var currentScale = Math.min(1, Math.max(0.1, opts.initialScale));
   function resize() {
     var rect = container.getBoundingClientRect();
     var width = Math.max(1, Math.floor(rect.width));
     var height = Math.max(1, Math.floor(rect.height));
-    renderer.setPixelRatio(pixelRatio);
+    renderer.setPixelRatio(pixelRatio * currentScale);
     renderer.setSize(width, height, false);
     var bw = renderer.domElement.width, bh = renderer.domElement.height;
     material.uniforms.iResolution.value.set(bw, bh);
@@ -179,12 +211,32 @@ export function createPrism(container, options) {
 
   var rafId = null;
   var lastTick = performance.now();
+  var grownToFull = currentScale >= 1; // true immediately on desktop (initialScale defaults to 1)
+  var firstFrameDone = false;
   function render() {
     var now = performance.now();
     var dt = Math.min(0.1, (now - lastTick) / 1000);
     lastTick = now;
     material.uniforms.iTime.value += dt;
     renderer.render(scene, camera);
+    if (!firstFrameDone) {
+      // the single most expensive moment in this whole pipeline -- context creation plus the lazy
+      // shader compile/link WebGL performs on this first render() call -- is now behind us.
+      // opts.onFirstFrame lets a caller (see script.js's mount) defer other non-critical work
+      // until this signal fires, rather than guessing at timing from outside. Fires exactly once,
+      // on every tier including desktop, regardless of how many times pause()/start() cycle later.
+      firstFrameDone = true;
+      if (typeof opts.onFirstFrame === 'function') opts.onFirstFrame();
+    }
+    if (!grownToFull) {
+      // the expensive first render (and the lazy shader compile it triggered) is done -- grow to
+      // the real tier resolution for every frame from here on. Runs exactly once per createPrism()
+      // call, regardless of how many times pause()/start() cycle afterward (e.g. scrolling the
+      // hero off/on screen), since grownToFull is never reset back to false.
+      grownToFull = true;
+      currentScale = 1;
+      resize();
+    }
     rafId = requestAnimationFrame(render);
   }
   function pause() {

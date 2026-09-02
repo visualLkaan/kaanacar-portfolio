@@ -1,5 +1,14 @@
 // ---- Setup ----
 var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// same hover/pointer convention already established elsewhere on this site (fast-travel.js,
+// flow-menu.js) -- computed once here and reused by the loader crowd density and hero-frame
+// tiering below. A landscape iPad can report an innerWidth well past this file's own 1024px
+// tablet/desktop split (a 12.9" iPad Pro reports 1366px in landscape) despite being the exact same
+// memory-constrained device as its own portrait orientation (1024px) -- raw viewport width alone
+// can't tell "wide landscape tablet" apart from "wide desktop browser window," but pointer type
+// reliably can: a real desktop keeps a fine/mouse pointer no matter how its window is sized, while
+// every iPad orientation reports a coarse one.
+var isCoarsePointer = !window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 var header = document.getElementById('site-header');
 var fastTravel = document.getElementById('fast-travel');
 var frameTop = document.getElementById('frame-top');
@@ -44,6 +53,32 @@ function markLoaderDone() {
     scheduleIdle(runNext);
   }
   scheduleIdle(runNext);
+}
+
+// ---- Prism-ready signal ----
+// Lets other deferred, non-critical Hero work (currently: the mobile/tablet hero-frame-sequence
+// continuation, see the "Hero background" section below) wait for Prism's own WebGL init --
+// context creation through its first render, the single most expensive moment in that pipeline --
+// to actually finish, rather than trusting afterLoader() queue order. Registration order alone
+// isn't a reliable signal here: Prism's mount is gated behind two dynamic import()s of its own
+// (prism-bg.js, and prism-bg.js's own import of three.module.min.js) that none of the other
+// deferred mounts have, so its real execution timing can land later than queue position would
+// suggest, even overlapping with something registered well after it.
+// Resolves immediately whenever Prism was never going to mount at all (reducedMotion, no
+// #hero-prism element, or the import itself failing) -- see the Prism mount block below -- so
+// nothing waiting on it can ever hang.
+var prismReady = false;
+var prismReadyCallbacks = [];
+function afterPrism(fn) {
+  if (prismReady) { fn(); return; }
+  prismReadyCallbacks.push(fn);
+}
+function markPrismReady() {
+  if (prismReady) return;
+  prismReady = true;
+  var callbacks = prismReadyCallbacks;
+  prismReadyCallbacks = [];
+  callbacks.forEach(function (fn) { fn(); });
 }
 
 // ---- Work: fully data-driven project model ----
@@ -457,14 +492,34 @@ function getProjectPalette(project) {
   var typeLayer = document.getElementById('loader-type');
   var hero = document.getElementById('hero');
 
-  if (reducedMotion || !canvas || typeof gsap === 'undefined') {
+  // shared fail-open path: hide the loader and reveal the site exactly as the normal reveal
+  // eventually would, without waiting for it. Guarded by the global loaderDone flag (already
+  // idempotent -- see markLoaderDone() above) so this is always safe to call more than once or
+  // after the loader has already completed normally; whichever happens first wins and every other
+  // call becomes a no-op.
+  function failOpen() {
+    if (loaderDone) return;
     loader.style.display = 'none';
     hero.classList.add('show');
     header.classList.add('show');
     if (fastTravel) fastTravel.classList.add('show');
     markLoaderDone();
+  }
+
+  if (reducedMotion || !canvas || typeof gsap === 'undefined') {
+    failOpen();
     return;
   }
+
+  // hard ceiling: guarantees the site is never stuck behind the loader if anything below --
+  // sprite decode, GSAP setup, the crowd/typography timelines -- fails in a way not already
+  // covered by img.onerror below (a request that stalls and never fires load or error on a flaky
+  // mobile connection, an unexpected exception partway through setup, etc). Registered as the very
+  // first thing in this path specifically so it's already armed before any of that setup runs.
+  // Generous enough to never engage in the normal case -- CROWD_LEAD_MS + the type entrance
+  // timeline + HOLD_MS + the reveal timeline already take several seconds together on their own --
+  // this is a backstop, not a change to the loader's own timing.
+  setTimeout(failOpen, 12000);
 
   var ctx = canvas.getContext('2d');
 
@@ -587,18 +642,30 @@ function getProjectPalette(project) {
 
   // perf/mobile-safety: the full sprite sheet (105 peeps) all become active crowd members on a wide
   // desktop stage -- fine there, but a phone-width canvas draws exactly as many drawImage() calls
-  // per frame for a fraction of the stage area, and this is the same startup window that previously
-  // produced an iPhone/iPad freeze. Scale the active count down proportionally on narrower stages
-  // only; anything at/above REFERENCE_STAGE_WIDTH (a typical laptop viewport) keeps today's exact
-  // full-count behavior, so desktop density is untouched. A floor keeps the crowd from ever reading
-  // as sparse/empty on the smallest phones.
-  var REFERENCE_STAGE_WIDTH = 1440;
-  var MIN_ACTIVE_PEEPS = 24;
+  // per frame for a fraction of the stage area. Density now tapers proportionally rather than one
+  // flat number for every device: full (105) at/above CROWD_DESKTOP_MIN_WIDTH -- 1024px, the same
+  // desktop/tablet split this file already uses elsewhere (see cardWidthRatio()) -- moderately
+  // reduced through the tablet band, down to a floor in the ~16-24 range this site's own real-phone
+  // testing called for at CROWD_PHONE_MAX_WIDTH and below. The devicePixelRatio question doesn't
+  // apply here: CANVAS_SCALE above is already fixed at 1 regardless of device, on every viewport,
+  // so there's no per-device DPR cost on this canvas left to cap.
+  var CROWD_DESKTOP_MIN_WIDTH = 1024;
+  var CROWD_PHONE_MAX_WIDTH = 430;
+  var CROWD_PHONE_FLOOR = 20;
+  function maxActivePeeps() {
+    var total = allPeeps.length;
+    // for a coarse-pointer (touch) device, classify by the SMALLER of width/height -- see
+    // isCoarsePointer's own comment at the top of this file for why -- so rotating an iPad to
+    // landscape can't accidentally read as "desktop" just because its width grew past the
+    // threshold. Desktop (fine pointer) always uses raw stage.width, exactly as before this change.
+    var w = isCoarsePointer ? Math.min(stage.width, stage.height || stage.width) : stage.width;
+    if (w <= 0 || w >= CROWD_DESKTOP_MIN_WIDTH) return total;
+    if (w <= CROWD_PHONE_MAX_WIDTH) return Math.min(total, CROWD_PHONE_FLOOR);
+    var t = (w - CROWD_PHONE_MAX_WIDTH) / (CROWD_DESKTOP_MIN_WIDTH - CROWD_PHONE_MAX_WIDTH);
+    return Math.round(CROWD_PHONE_FLOOR + t * (total - CROWD_PHONE_FLOOR));
+  }
   function initCrowd() {
-    var maxActive = allPeeps.length;
-    if (stage.width > 0 && stage.width < REFERENCE_STAGE_WIDTH) {
-      maxActive = Math.max(MIN_ACTIVE_PEEPS, Math.round(allPeeps.length * (stage.width / REFERENCE_STAGE_WIDTH)));
-    }
+    var maxActive = maxActivePeeps();
     var n = 0;
     while (availablePeeps.length && n < maxActive) {
       addPeepToCrowd().walk.progress(Math.random());
@@ -694,15 +761,9 @@ function getProjectPalette(project) {
       beginCrowd(img, img.naturalWidth, img.naturalHeight);
     }
   };
-  img.onerror = function () {
-    // sprite sheet not in place yet -- fail open rather than leave the site stuck behind a
-    // loader that can never finish
-    loader.style.display = 'none';
-    hero.classList.add('show');
-    header.classList.add('show');
-    if (fastTravel) fastTravel.classList.add('show');
-    markLoaderDone();
-  };
+  // sprite sheet not in place, or the request failed outright -- fail open rather than leave the
+  // site stuck behind a loader that can never finish
+  img.onerror = failOpen;
   img.src = config.src;
 
   window.addEventListener('resize', resize);
@@ -833,6 +894,14 @@ function getProjectPalette(project) {
 afterLoader(function () {
   var blobs = Array.prototype.slice.call(document.querySelectorAll('.ambient-blob'));
   if (!blobs.length || reducedMotion) return;
+  // stability-first: this animates continuously (mouse + idle drift) for the page's entire life,
+  // behind the Hero and every other section, and each blob is a permanently-composited (large,
+  // heavily blurred) layer -- real, sustained compositing work stacked on top of everything else
+  // active right at loader hand-off. On phone/tablet this loop is never started at all: no
+  // mousemove listener, no requestAnimationFrame, nothing to stop later -- the blobs render once,
+  // at their plain CSS position, as a static (non-animating) background instead. Desktop is
+  // unaffected, same continuous animation as before.
+  if (isCoarsePointer && Math.min(window.innerWidth, window.innerHeight) <= 1024) return;
 
   var targetX = 0, targetY = 0, curX = 0, curY = 0; // mouse offset from viewport center, range -1..1
 
@@ -876,6 +945,14 @@ afterLoader(function () {
   var heroName = document.querySelector('.hero-name');
   var hero = document.getElementById('hero');
   if (!heroName || !hero || reducedMotion) return;
+  // stability-first: a continuously-running rAF loop (mouse + idle drift) for the page's entire
+  // life, writing transform on the Hero name and, on desktop, Prism's own mount -- one more thing
+  // competing for frame budget right at loader hand-off. Never started on phone/tablet: no
+  // mousemove listener, no requestAnimationFrame. The name simply holds its plain, settled CSS
+  // position instead of drifting -- Prism doesn't exist on this tier at all (see the Prism mount
+  // block elsewhere in this file), so there's nothing here for it to move anyway. Desktop
+  // unaffected, same continuous parallax as before.
+  if (isCoarsePointer && Math.min(window.innerWidth, window.innerHeight) <= 1024) return;
 
   var nameWrap = document.getElementById('hero-name-wrap');
   var prismMount = document.getElementById('hero-prism');
@@ -928,6 +1005,24 @@ afterLoader(function () {
   var hero = document.getElementById('hero');
   if (!hero || reducedMotion) return;
 
+  // perf/mobile-safety: this effect's filter:blur() (and, to a much lesser extent, its
+  // transform:scale()) apply directly to #hero itself -- which has BOTH hero canvases as direct
+  // children, Prism's own WebGL canvas (#hero-prism, mounted inside #hero -- see index.html) and
+  // the 2D frame-sequence canvas. A CSS filter forces the browser to rasterize that entire subtree
+  // -- both canvases and the glow together -- to an offscreen buffer every scroll frame it's
+  // active, instead of the cheap GPU-compositor-only path a plain transform on an unrelated
+  // element would get. That's real, additional compositing work stacked directly on top of
+  // Prism's own raymarch and the frame-sequence canvas's own draw, in exactly the window right
+  // after loader hand-off where a real iPhone/iPad has been crashing. A previous pass capped just
+  // the blur half to 0 on phone; this one removes the whole effect (scale included, since it's the
+  // same subtree being touched every frame either way) on phone AND tablet -- no scroll/resize
+  // listeners registered, no rAF loop started, #hero's own transform/filter never written -- while
+  // leaving desktop completely unchanged. The frame-sequence's own scroll-scrub (a separate loop,
+  // see the "Hero background" IIFE elsewhere in this file) is untouched by this and keeps
+  // responding to scroll normally on every device -- this only removes the extra scale/blur
+  // layered on top of the whole #hero container.
+  if (window.innerWidth <= 1024) return;
+
   var MAX_SCALE = 0.02; // 1 -> 1.02
   var MAX_BLUR = 1.5;   // px
 
@@ -963,12 +1058,28 @@ afterLoader(function () {
 // name/copy are already fully legible without it, so it can pop in a beat after the loader hands
 // off rather than competing with it for frame budget. ----
 afterLoader(function () {
-  if (reducedMotion) return;
+  // every early-exit here must still call markPrismReady() -- anything waiting on afterPrism()
+  // (the mobile/tablet hero-frame continuation below) must never hang just because Prism itself
+  // was never going to mount.
+  if (reducedMotion) { markPrismReady(); return; }
   var mount = document.getElementById('hero-prism');
-  if (!mount) return;
+  if (!mount) { markPrismReady(); return; }
+  // stability-first: Prism is completely removed from phone/tablet, not just tiered down or
+  // hidden. Real-device testing showed a crash still happening even at Prism's lightest tier, and
+  // WebGL context creation + shader compilation is a well-documented category of mobile GPU/driver
+  // crash independent of how few pixels/iterations it's asked to do -- the only way to actually
+  // remove that risk is to never create the context at all. The module itself (js/prism-bg.js,
+  // which also pulls in Three.js) is never even fetched on phone/tablet: no import(), no
+  // WebGLRenderer, no shader compile, no render loop, nothing to dispose of later. Same
+  // isCoarsePointer + smaller-of-width/height check as the loader's own crash-safety logic (see
+  // that variable's own comment near the top of this file) so a landscape iPad can't slip past
+  // this the same way it could slip past a raw-width check. Desktop is completely unchanged --
+  // exact same import()/createPrism() call as before, same tier object, same visual result.
+  var prismTierWidth = isCoarsePointer ? Math.min(window.innerWidth, window.innerHeight) : window.innerWidth;
+  if (prismTierWidth <= 1024) { markPrismReady(); return; }
   import('./prism-bg.js').then(function (mod) {
-    mod.createPrism(mount);
-  });
+    mod.createPrism(mount, { maxPixelRatio: 1.75, steps: 64, onFirstFrame: markPrismReady });
+  }, markPrismReady); // import() itself failing (network/parse error) -- fail open the same way
 });
 
 // ---- Hero background: preloaded WebP frame-sequence, painted from scroll position ----
@@ -1006,11 +1117,17 @@ afterLoader(function () {
   var CONTENT_MAX_TRANSLATE = 10; // 0 -> -10px
   var CONTENT_MAX_FADE = 0.05;    // 1 -> 0.95
 
-  var frames = [];  // sparse: frames[i] is set once that frame has loaded and decoded
+  var frames = [];  // sparse: frames[i] is set once that frame has loaded and decoded. On desktop
+                     // this fills in fully and stays that way (every index, held for the page's
+                     // life). On phone/tablet it's a small sliding window instead -- see
+                     // ensureMobileFrame()/evictOutsideWindow() below -- entries outside that
+                     // window are actively deleted (and, for ImageBitmap, .close()d) so this array
+                     // never holds more than a handful of frames at once on those tiers.
   var frameCount = 0;
   var nativeW = 0, nativeH = 0;
   var lastDrawnIndex = -1;
   var curT = 0; // read by resizeCanvas even before the scroll-scrub path (if any) starts owning it
+  var pad = 3, decodeRect = null; // set once the manifest resolves; read by loop() on every tick
 
   function frameUrl(i, pad) {
     var n = String(i + 1);
@@ -1018,27 +1135,65 @@ afterLoader(function () {
     return FRAMES_BASE + 'frame-' + n + '.webp';
   }
 
-  // the size to decode each frame at: the same "cover" scale drawFrame itself uses, so the
-  // decoded bitmap is exactly big enough to cover the canvas at 1:1 with no further upscaling --
-  // capped at the source's own native size (min(...,1)) since decoding *larger* than the master
-  // would just upscale it, not add real detail
-  function coverDecodeSize() {
-    var scale = Math.min(1, Math.max(canvas.width / nativeW, canvas.height / nativeH));
+  // the crop-then-resize rect to decode each frame at: the same "cover" math drawFrame() uses at
+  // draw time, computed here against the SOURCE's native dimensions and applied at decode time via
+  // createImageBitmap's own crop overload (sx,sy,sw,sh), instead of resizing the whole source first
+  // and letting drawFrame() crop the (wasted) excess away afterward every frame.
+  //
+  // The old version only computed a resize target (nativeW*scale x nativeH*scale, scale picked by
+  // whichever dimension needed MORE resolution to "cover") and decoded the entire source at that
+  // size. That's fine on a desktop viewport, whose aspect ratio is already close to this landscape
+  // source's own -- but on a portrait phone viewport (tall, narrow) against a landscape 3840x2160
+  // source, the height-driven scale lands close to 1.0, so it decoded nearly the FULL native width
+  // (~3733px measured) on every one of 127 frames just to keep the ~1170px center slice that
+  // drawFrame() actually crops to afterward -- roughly 3x more pixels decoded than ever painted,
+  // times 127 frames, a real multi-hundred-MB-to-gigabyte-scale cumulative allocation. iOS Safari
+  // doesn't throw a catchable error when a tab exceeds its memory budget -- it silently kills/
+  // reloads it, which is what this fixes: a real-device crash during the loader's hold (while this
+  // preload runs in the background), not a performance nit and not anything introduced by this
+  // site's other mobile-safety passes (the concurrency cap above only throttles how many decodes
+  // are in flight at once; it never reduced how much any single one actually allocated).
+  //
+  // Cropping the source rectangle first and resizing only that crop to exactly the canvas's own
+  // backing-store size bounds decode memory to canvas.width x canvas.height on every viewport,
+  // mismatched aspect ratio or not, and produces the pixel-identical result at draw time either
+  // way (drawFrame()'s own crop becomes a no-op once the decoded bitmap already matches the canvas
+  // exactly). For any viewport whose aspect ratio already roughly matches the source -- every
+  // desktop case here -- sx/sy land at/near 0 and sw/sh at/near the source's own full extent, i.e.
+  // this produces the same decode target desktop already had; only the mismatched portrait-mobile
+  // case actually changes.
+  function coverDecodeRect() {
+    var cw = canvas.width, ch = canvas.height;
+    if (!cw || !ch) return { sx: 0, sy: 0, sw: nativeW, sh: nativeH, dw: nativeW, dh: nativeH };
+    var scale = Math.max(cw / nativeW, ch / nativeH);
+    var sw = Math.min(nativeW, cw / scale);
+    var sh = Math.min(nativeH, ch / scale);
     return {
-      w: Math.max(1, Math.round(nativeW * scale)),
-      h: Math.max(1, Math.round(nativeH * scale))
+      sx: Math.max(0, Math.round((nativeW - sw) / 2)),
+      sy: Math.max(0, Math.round((nativeH - sh) / 2)),
+      sw: Math.max(1, Math.round(sw)),
+      sh: Math.max(1, Math.round(sh)),
+      dw: cw,
+      dh: ch
     };
   }
 
-  // createImageBitmap's resizeWidth/Height performs a real high-quality resample during decode
-  // itself (not a quality cut -- it's the same pixels the canvas would end up showing anyway),
-  // so the browser never has to hold a full 3840x2160 bitmap per frame in memory. Falls back to a
-  // plain Image (decoded at native size) on the rare browser without createImageBitmap.
-  function loadFrame(i, pad, decodeW, decodeH) {
+  // createImageBitmap's crop-then-resize performs a real high-quality resample during decode
+  // itself (not a quality cut -- it's the same pixels the canvas would end up showing anyway), so
+  // the browser never has to hold anywhere near a full 3840x2160 bitmap per frame in memory. Falls
+  // back to a plain Image (decoded at native size, cropped only at draw time by drawFrame() as
+  // before) on the rare browser without createImageBitmap. If frames[i] already holds something
+  // (a re-request for an index that's already resident, e.g. the visitor scrolled back to it
+  // before it was evicted) this resolves immediately without a second fetch/decode -- see
+  // ensureMobileFrame()'s own guard below, which is what actually prevents that call in practice.
+  function loadFrame(i, pad, rect) {
+    if (frames[i]) return Promise.resolve();
     var url = frameUrl(i, pad);
     if (window.createImageBitmap) {
       return fetch(url).then(function (r) { return r.blob(); }).then(function (blob) {
-        return createImageBitmap(blob, { resizeWidth: decodeW, resizeHeight: decodeH, resizeQuality: 'high' });
+        return createImageBitmap(blob, rect.sx, rect.sy, rect.sw, rect.sh, {
+          resizeWidth: rect.dw, resizeHeight: rect.dh, resizeQuality: 'high'
+        });
       }).then(function (bitmap) { frames[i] = bitmap; }).catch(function () {});
     }
     var img = new Image();
@@ -1074,22 +1229,27 @@ afterLoader(function () {
   }
   window.addEventListener('resize', resizeCanvas);
 
-  // perf: this preload used to fire every frame's fetch()+createImageBitmap() at once (127 of them)
-  // the instant this file runs -- i.e. squarely inside the loader's own opening beat, competing with
-  // its canvas render + text entrance for exactly the frame budget that stutter comes from, and the
-  // likely source of the earlier iPhone/iPad startup freeze (mobile decode is memory/thread-limited).
-  // A small concurrency pool keeps only a handful of loads in flight at once instead -- every frame
-  // still starts loading immediately and is still resident well within the loader's ~2.6s hold (see
-  // CROWD_LEAD_MS/HOLD_MS above), so the "already loaded by hero reveal" behavior is unchanged; only
-  // the simultaneous burst is removed. Lower cap on narrow/mobile viewports, same reasoning as the
-  // loader crowd cap above.
-  var FRAME_LOAD_CONCURRENCY = window.innerWidth <= 760 ? 3 : 6;
-  function loadFramesThrottled(count, pad, decodeW, decodeH) {
-    var next = 0, active = 0;
+  // heroTierWidth (not raw window.innerWidth) -- see isCoarsePointer's own comment near the top of
+  // this file: a landscape iPad/tablet can report a width past 1024 (a 12.9" iPad Pro reports
+  // 1366px in landscape) despite being the exact same memory-constrained device as its own
+  // <=1024px portrait orientation. For a coarse-pointer device, this uses the smaller of
+  // width/height instead, so rotating a tablet can't accidentally skip the safe path below.
+  // Desktop (fine pointer) always uses raw innerWidth, unaffected.
+  var heroTierWidth = isCoarsePointer ? Math.min(window.innerWidth, window.innerHeight) : window.innerWidth;
+  var HERO_MOBILE_TIER = heroTierWidth <= 1024;
+
+  // ---- desktop: unchanged -- decode every frame once, keep every one resident for the page's
+  // life. No concurrency pool needed at all above 1 in-flight fetch+decode chain; this file never
+  // fired more than FRAME_LOAD_CONCURRENCY requests at once even before this pass, and desktop
+  // devices have never been where the crash was reproduced. ----
+  var FRAME_LOAD_CONCURRENCY = 6;
+  function loadFrames(indices, pad, rect) {
+    var i = 0, active = 0;
     function pump() {
-      while (active < FRAME_LOAD_CONCURRENCY && next < count) {
+      while (active < FRAME_LOAD_CONCURRENCY && i < indices.length) {
+        var idx = indices[i++];
         active++;
-        loadFrame(next++, pad, decodeW, decodeH).then(function () {
+        loadFrame(idx, pad, rect).then(function () {
           active--;
           pump();
         });
@@ -1097,39 +1257,108 @@ afterLoader(function () {
     }
     pump();
   }
+  function rangeIndices(count) {
+    var out = [];
+    for (var i = 0; i < count; i++) out.push(i);
+    return out;
+  }
+
+  // ---- phone/tablet: a true small sliding window, not a bounded-but-still-permanent preload. ----
+  // A previous pass here still decoded ~30 frames up front and kept every one of them resident
+  // forever -- concurrency and a total cap bound the RATE and the CEILING, but nothing was ever
+  // released, and decode order followed a fixed background list unrelated to where the visitor
+  // actually was. This is a genuinely different, smaller model: at most a handful of frames are
+  // EVER resident at once (HERO_MOBILE_WINDOW on either side of whichever frame the scroll-scrub
+  // loop currently wants, plus frame 0 as a permanent fallback anchor -- see drawFrame()'s own
+  // nearest-loaded walk, which needs SOMETHING to fall back to before the window has caught up).
+  // Decode is reactive, driven directly by the current scroll target every rAF tick (see loop() in
+  // startScrollScrub() below) instead of a fixed preload list, and strictly one-at-a-time
+  // (mobileDecoding below) -- if the target changes again before that single in-flight decode
+  // finishes, nothing new is queued; the next tick simply re-reads whatever the CURRENT target is
+  // once the in-flight one resolves, so a fast scroll through frame 10 -> 30 -> 60 -> 90 decodes
+  // only wherever the visitor actually lands, never all four.
+  var HERO_MOBILE_WINDOW = 2; // frames kept resident on either side of the current target
+  var mobileDecoding = false;
+  function ensureMobileFrame(idx) {
+    if (!HERO_MOBILE_TIER || idx < 0 || idx >= frameCount) return;
+    if (frames[idx] || mobileDecoding || !decodeRect) return;
+    mobileDecoding = true;
+    loadFrame(idx, pad, decodeRect).then(function () {
+      mobileDecoding = false;
+      evictOutsideWindow(idx);
+    });
+  }
+  function evictOutsideWindow(centerIdx) {
+    for (var i = 1; i < frameCount; i++) { // i=1: index 0 is the permanent fallback, never evicted
+      if (!frames[i]) continue;
+      if (Math.abs(i - centerIdx) > HERO_MOBILE_WINDOW) {
+        var img = frames[i];
+        if (img && typeof img.close === 'function') img.close(); // ImageBitmap: release GPU memory
+        delete frames[i];
+      }
+    }
+  }
 
   fetch(FRAMES_BASE + 'manifest.json').then(function (r) { return r.json(); }).then(function (manifest) {
     frameCount = manifest.count;
     nativeW = manifest.width;
     nativeH = manifest.height;
-    var pad = manifest.pad || 3;
+    pad = manifest.pad || 3;
     resizeCanvas();
-    var decodeSize = coverDecodeSize();
+    decodeRect = coverDecodeRect();
 
     if (reducedMotion) {
-      loadFrame(0, pad, decodeSize.w, decodeSize.h).then(function () { drawFrame(0); });
+      loadFrame(0, pad, decodeRect).then(function () { drawFrame(0); });
       return;
     }
 
-    loadFramesThrottled(frameCount, pad, decodeSize.w, decodeSize.h);
+    // mobile/tablet: load only frame 0 up front -- the loader/hero-reveal only ever needs the site
+    // to be visually correct the instant it hands off, not the full scroll sequence ready in
+    // advance; scrolling doesn't even become possible until well after that hand-off. Every other
+    // frame is now decoded reactively, one at a time, by ensureMobileFrame()/loop() above/below as
+    // the visitor actually scrolls -- there is no separate background preload pass to kick off
+    // here at all (a previous pass had one; removed, see the sliding-window comment above for why).
+    // Desktop is completely untouched: same immediate full-sequence preload as before, byte for
+    // byte, via loadFrames()/rangeIndices() exactly as before this pass.
+    if (HERO_MOBILE_TIER) {
+      loadFrame(0, pad, decodeRect).then(function () { drawFrame(0); });
+      startScrollScrub();
+      return;
+    }
+
+    loadFrames(rangeIndices(frameCount), pad, decodeRect);
     startScrollScrub();
   }).catch(function () {});
 
   function startScrollScrub() {
     var targetT = 0;
 
+    // perf: getBoundingClientRect() forces the browser to flush any pending layout before it can
+    // answer -- a real cost to pay on every single raw scroll event, which can fire at very high
+    // frequency. track's own position relative to the page (not the viewport) doesn't change from
+    // scrolling itself, only from an actual resize/reflow above it, so it's measured once here
+    // (and re-measured only on resize) instead of on every scroll tick; the scroll handler itself
+    // is now pure arithmetic against that cached value.
+    var trackTop = 0;
+    function measureTrackTop() {
+      trackTop = track.getBoundingClientRect().top + window.scrollY;
+    }
     function updateTarget() {
-      var trackTop = track.getBoundingClientRect().top + window.scrollY;
       targetT = Math.min(Math.max((window.scrollY - trackTop) / SCROLL_RANGE, 0), 1);
     }
     window.addEventListener('scroll', updateTarget, { passive: true });
-    window.addEventListener('resize', updateTarget);
+    window.addEventListener('resize', function () { measureTrackTop(); updateTarget(); });
+    measureTrackTop();
     updateTarget();
 
     function loop() {
       curT += (targetT - curT) * 0.09;
 
       var idx = Math.round(curT * (frameCount - 1));
+      // on phone/tablet, this is also what drives the reactive sliding-window decode -- see
+      // ensureMobileFrame()'s own comment above. A no-op on desktop (HERO_MOBILE_TIER is false) and
+      // a cheap no-op here too whenever idx is already resident or a decode is already in flight.
+      ensureMobileFrame(idx);
       // walk back to the nearest already-loaded frame instead of leaving the canvas stale if
       // loading hasn't caught up yet (slow connection) -- never draws a missing frame
       while (idx > 0 && !frames[idx]) idx--;
@@ -1672,11 +1901,23 @@ afterLoader(function () {
     scheduleAutoplay(IDLE_DELAY); // any real interaction restarts the idle countdown immediately
   }
 
+  // width, as a fraction of viewport width: 0.88 at phone widths, tapering smoothly down to the
+  // existing 0.72 desktop ratio across the 760-1024px tablet band, reaching exactly 0.72 at 1024
+  // and staying exactly 0.72 above it -- so 1024px+ (this site's own desktop floor) is byte-for-
+  // byte the same multiplier as before this change, and only the tablet band in between (where an
+  // iPad portrait/landscape used to jump straight to the desktop ratio, several hundred px earlier
+  // than any other component's own responsive tuning) now eases into it instead of cutting to it.
+  function cardWidthRatio(vw) {
+    if (vw <= 760) return 0.88;
+    if (vw >= 1024) return 0.72;
+    var t = (vw - 760) / (1024 - 760);
+    return 0.88 - t * (0.88 - 0.72);
+  }
   function cardSize() {
     var vw = window.innerWidth, vh = window.innerHeight;
     // large, immersive panels occupying most of the viewport (sized for their true rendered,
     // post-recentering scale -- see render()'s note on the perspective-magnification fix)
-    var width = Math.min(1200, Math.max(300, vw < 760 ? vw * 0.88 : vw * 0.72));
+    var width = Math.min(1200, Math.max(300, vw * cardWidthRatio(vw)));
     var height = Math.min(vh * 0.74, width * 0.6);
     return { width: Math.round(width), height: Math.round(height) };
   }
@@ -2229,9 +2470,20 @@ afterLoader(function () {
     camTargetY = (e.clientY / window.innerHeight) * 2 - 1;
   });
 
+  // perf: this loop used to call requestAnimationFrame(bgLoop) unconditionally forever, so it kept
+  // writing 26 particles' transform/opacity plus the carousel's own --tiltX/--tiltY every frame
+  // long after #work (and the carousel it tilts) had scrolled out of view -- pure wasted work for
+  // the rest of the page's lifetime, worse on weaker mobile CPUs. It now only runs while #work is
+  // actually intersecting the viewport, using the same IntersectionObserver already driving the
+  // wash/particle opacity fade below (not a second, competing visibility mechanism) -- the loop
+  // stops scheduling itself the moment #work leaves view and the observer restarts it the moment
+  // #work comes back, with zero change to what it draws or how it looks while running.
+  var workBgInView = false;
+  var workBgRunning = false;
   if (!reducedMotion) {
     var bgT = 0;
-    (function bgLoop() {
+    var bgLoop = function () {
+      if (!workBgInView) { workBgRunning = false; return; }
       bgT += 0.0026;
       camCurX += (camTargetX - camCurX) * 0.045;
       camCurY += (camTargetY - camCurY) * 0.045;
@@ -2252,7 +2504,12 @@ afterLoader(function () {
       viewport.style.setProperty('--tiltY', (camCurX * 3.6).toFixed(2) + 'deg');
 
       requestAnimationFrame(bgLoop);
-    })();
+    };
+  }
+  function startBgLoopIfNeeded() {
+    if (workBgRunning || reducedMotion) return;
+    workBgRunning = true;
+    requestAnimationFrame(bgLoop);
   }
 
   // ---- the background wash + particles are only meaningfully visible while the Work section
@@ -2262,6 +2519,8 @@ afterLoader(function () {
     var bgVisibilityObserver = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         workBg.classList.toggle('in-view', entry.isIntersecting);
+        workBgInView = entry.isIntersecting;
+        if (workBgInView) startBgLoopIfNeeded();
       });
     }, { threshold: 0.12 });
     bgVisibilityObserver.observe(workSection);

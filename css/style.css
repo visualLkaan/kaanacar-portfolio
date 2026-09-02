@@ -437,6 +437,20 @@ header.frame-away{ top:0; }
 .hero-content{ width:100%; position:relative; z-index:1; will-change:transform, opacity; }
 
 .hero-name-wrap{ width:100%; position:relative; z-index:1; will-change:transform; }
+/* stability-first: on phone/tablet, js/script.js never starts the animations these three
+   will-change hints exist for -- Prism doesn't mount at all (#hero-prism stays an empty div), the
+   cursor-parallax loop that would transform .hero-name-wrap never starts, and the scroll-driven
+   scale/blur effect that would transform/filter #hero itself is disabled on this same tier. A
+   will-change hint with no animation behind it still forces a persistent compositing layer for no
+   benefit. `(pointer:coarse) and (max-width/max-height:1024px)` mirrors js/script.js's own
+   isCoarsePointer + smaller-of-width/height device check (see that variable's comment there) so a
+   landscape tablet is covered the same way. Desktop is untouched -- this query can't match a
+   fine-pointer device regardless of window size. .hero-content keeps its own will-change: the
+   scroll-driven content scale/fade it hints at is unrelated to any of these three and still runs
+   on every tier. */
+@media (pointer:coarse) and (max-width:1024px), (pointer:coarse) and (max-height:1024px){
+  #hero, #hero-prism, .hero-name-wrap{ will-change:auto; }
+}
 .hero-name{
   font-family:var(--geist);
   font-weight:700;
@@ -684,10 +698,25 @@ section{ padding:130px 0 60px; }
 }
 .carousel-hint.hide{ opacity:0; }
 
+/* tablet band (iPad portrait/landscape and similar) -- js/script.js's own cardSize() now tapers
+   the card width ratio smoothly across this same range instead of jumping straight to the desktop
+   ratio at 761px (see cardWidthRatio() there); this eases the info box's own proportions to match
+   rather than leaving it at the full desktop padding/max-width the whole way down to 761px, which
+   read as cramped/squeezed on a real iPad rather than intentionally composed for it. Desktop
+   (1024px+) and phone (<=760px, its own block below) are both untouched by this rule. */
+@media (min-width:761px) and (max-width:1024px){
+  .carousel-info{ max-width:min(52vw, 420px); padding:130px 40px 26px 26px; }
+}
+
 @media (max-width:760px){
   #work-carousel{ padding:0 var(--edge) 24px; }
   .carousel-viewport{ height:min(62vh, 560px); }
-  .carousel-info{ left:16px; bottom:16px; max-width:74vw; }
+  /* the desktop padding (170px 70px 28px 28px) was never re-tuned for phone widths -- against a
+     74vw-capped box on a 375-430px screen, 98px of combined left/right padding left very little
+     room for a Poster-family title plus its mono meta row, especially for this site's longer
+     project titles. Same composition (bottom-left info card over a gradient scrim), just
+     proportioned for the available width instead of inheriting the desktop numbers as-is. */
+  .carousel-info{ left:16px; bottom:16px; max-width:74vw; padding:104px 20px 20px 16px; }
   .carousel-info__title{ font-size:clamp(1.2rem, 6vw, 1.8rem); }
 }
 
