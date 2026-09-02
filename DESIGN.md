@@ -247,74 +247,126 @@ Guidance:
   already-dark sections; it was only ever needed to bridge the identity
   intro's bright footage into black, and that footage no longer exists here.
 - **Stagger-build + group-exit scene** (`#identity`, `#about-me`, `#skills`,
-  `#availability`, see `js/scenes.js`): the pattern these four scenes share.
-  Each line of content (a heading, a fact, a sentence, a card) has its own
-  scroll window and stagger-builds in top to bottom — never the whole block
-  fading at once — holds fully assembled long enough to read, then the entire
-  content container (not the individual lines) fades/blurs/lifts out
-  together as one unit before the next scene's own build begins. That
-  container-level group exit is what sells "one continuous scene," not four
-  stacked sections — never make an individual line exit on its own once
-  this pattern is in use elsewhere. `#identity` and `#about-me` used to be one
-  combined scene; they were split so the name could be sized as its own
-  focal moment without a wall of body copy sharing the frame, and so the
-  About Me passage gets a hold proportional to how much of it there actually
-  is to read, rather than sharing a hold budget with the facts above it.
+  `#availability`): the pattern these four scenes share, though `#identity`
+  is implemented by its own dedicated `js/identity.js` rather than the
+  `js/scenes.js` engine the other three use (see that file's own header
+  comment for why — a performance requirement that `#identity` specifically
+  never run a permanent per-frame animation loop, so it computes its own
+  scroll progress inside a single rAF-throttled scroll/resize listener
+  instead of joining `js/scenes.js`'s shared lerp-smoothed loop). Each line
+  of content (a heading, a fact, a sentence, a card, or — for `#identity`
+  specifically — a single character) has its own scroll window and
+  stagger-builds in top to bottom — never the whole block fading at once —
+  holds fully assembled long enough to read, then the entire content
+  container (not the individual lines) fades/blurs/lifts out together as one
+  unit before the next scene's own build begins. That container-level group
+  exit is what sells "one continuous scene," not four stacked sections —
+  never make an individual line exit on its own once this pattern is in use
+  elsewhere. `#identity` and `#about-me` used to be one combined scene; they
+  were split so the name could be sized as its own focal moment without a
+  wall of body copy sharing the frame, and so the About Me passage gets a
+  hold proportional to how much of it there actually is to read, rather than
+  sharing a hold budget with the facts above it.
 - **Split Text line:** a vanilla-CSS take on React Bits' Split Text
   (https://reactbits.dev/text-animations/split-text), used for every
-  plain-text line inside the stagger-build scenes above (headings, the name,
-  the About Me sentences) — each word gets its own tiny cascade window
-  within its line's own window, so a line "types itself in" word by word
-  rather than fading as one flat block. Structured label/value content (fact
-  rows, skill cards, availability items) deliberately skips this and reveals
-  as a whole block instead — splitting a "label: value" row word-by-word
-  reads as noise, not signal. Don't apply Split Text to anything that isn't
-  prose.
-- **Section-scoped ambient reveal:** `#identity`'s background reuses the
-  site-wide `.ambient-blob` mechanism (see Elevation & Depth) rather than
-  inventing a new gradient language for one section — the same narrow,
-  deliberate exception to "one fixed ambient canvas" that `#hero-prism`
-  already set a precedent for. `#about-me` gets its own, *different* ambient
-  treatment (`.about-me-rays`, see below) rather than reusing `.ambient-blob`
-  — a second scoped exception, explicitly requested, not a loosening of the
-  rule. `#skills`/`#availability` still have none: one ambient exception per
-  section is the limit, and two consecutive glowing sections (`#identity` →
-  `#about-me`) is already the ceiling for how often this repeats back to
-  back — don't add a third in `#skills`.
-- **About Me redesign — no heading, upright-Fraunces editorial type, masked
-  ambient rays, soft text bloom** (`#about-me`, see `css/style.css`'s ABOUT ME
-  block): explicit art direction broke this one passage from several rules
-  that hold everywhere else on the site, each documented here so a future
-  pass doesn't "fix" them back:
-  - No visible heading (the sr-only `<h2>` is the only "About Me" label left)
-    — the copy itself is the composition's focal point.
-  - Body copy left-set in an offset column (`.about-me-copy`, `margin-left`
-    a clamped percentage, not centered) rather than the centered-block
-    convention every other scene here uses — the asymmetric negative space is
-    the art direction, not an oversight.
+  plain-text line inside the `js/scenes.js`-driven stagger-build scenes
+  (headings, the About Me sentences) — each word gets its own tiny cascade
+  window within its line's own window, so a line "types itself in" word by
+  word rather than fading as one flat block. Structured label/value content
+  (fact rows, skill cards, availability items) deliberately skips this and
+  reveals as a whole block instead — splitting a "label: value" row
+  word-by-word reads as noise, not signal. Don't apply Split Text to
+  anything that isn't prose. `#identity`'s own name uses a related but
+  separate technique — see `.identity-new__name` below — character-level
+  rather than word-level, and implemented independently in `js/identity.js`,
+  not this component.
+- **`#identity` stays plain black, no ambient background:** an earlier pass
+  gave `#identity` its own section-scoped reuse of the site-wide
+  `.ambient-blob` mechanism; removed after it read as an unintended purple
+  glow behind the name rather than a deliberate lighting cue. A full rebuild
+  followed (`.identity-new*`, `js/identity.js`) that never reintroduced it.
+  `#identity` matches `#skills`/`#availability` — plain `#000`, no background
+  effect. Legibility for the name against that flat black comes from
+  `.identity-new__name`'s own static text-shadow bloom instead (see below) —
+  a foreground effect, not a background one. `#about-me` keeps its own,
+  *different* ambient treatment (`.about-me-glow`, see below) — the one
+  remaining scoped ambient exception to "one fixed ambient canvas" that
+  `#hero-prism` set the precedent for. Don't reintroduce a background glow on
+  `#identity`/`#skills`/`#availability`: one ambient exception per section is
+  already spent by `#about-me`.
+- **About Me redesign — centered editorial column, upright-Fraunces type,
+  static ambient glow, restrained hierarchy** (`#about-me`, see
+  `css/style.css`'s ABOUT ME block): a second art-direction pass, replacing
+  an earlier left-offset-column version (kept no visible heading from that
+  pass; changed everything about the composition itself), documented here so
+  a future pass doesn't "fix" these back to something more generic:
+  - Still no visible heading (the sr-only `<h2>` is the only "About Me"
+    label left for assistive tech) — instead a tiny, understated visual
+    label, `.about-me-label` (mono, uppercase, letter-spaced, `--muted`,
+    `aria-hidden` since the sr-only heading already covers accessibility) —
+    small and quiet on purpose, never competing with the copy below it.
+  - `.about-me-copy` is a **true centered column**, not `text-align:center`:
+    the column itself sits on the page's horizontal center via
+    `margin:0 auto` at a controlled ~680px reading measure (narrower on
+    tablet/mobile, never touching the viewport edges), while every line
+    inside it stays left-aligned. This replaced an earlier left-offset,
+    off-center version (`margin-left:clamp(...)`) that read as stuck to one
+    side rather than composed — don't reintroduce that offset without
+    updating this line first.
+  - `#about-me` lands the column in the upper-middle of the viewport
+    (`align-items:flex-start` plus a `clamp()` top padding, not
+    `align-items:center`) so the fixed-height composition reads as flowing
+    downward through the generous space below it, rather than sitting
+    pinned dead-center.
   - Set in upright (non-italic) Fraunces at a large editorial scale — see
     Typography for why this landed here after an Inter-sans pass and a
-    centered-italic-Fraunces starting point both read wrong.
+    centered-italic-Fraunces starting point both read wrong. The centered
+    *column* (not centered *text*) is what keeps this from reading as a
+    poem/quote despite being centered on the page — the italic ban and the
+    left-aligned-lines-inside-a-centered-column rule both still apply.
+  - Very subtle typographic hierarchy: the lead sentence stays full opacity;
+    the four sentences after it (`.about-me-line--secondary`) settle at a
+    static `opacity:0.84` once revealed — a restrained cue, not a second
+    color or size. This is a fixed value, not motion, so it's preserved
+    under `prefers-reduced-motion` rather than reset to full opacity with
+    everything else (see the reduced-motion media query in that same CSS
+    block).
   - `.about-me-line` carries a restrained multi-layer `text-shadow` bloom
     (hairline white edge, two low-opacity `--accent-tint` rings, one very
     soft wide `--violet` halo for extra depth) — text stays `--paper` white,
     this only adds felt-not-noticed depth. This is **not** the `.shiny-text`
-    component and doesn't count against its two-use ceiling (see Do's and
+    component and doesn't count against its one-use ceiling (see Do's and
     Don'ts) — a static ambient bloom is a different, more restrained category
     of effect than the animated gradient-fill/specular-sweep `.shiny-text`
     is. Don't reach for `.shiny-text` here even so; this section's glow is
-    intentionally quieter.
-  - `.about-me-rays`: a vanilla-CSS take on React Bits' Side Rays
-    (https://reactbits.dev/backgrounds/side-rays) — two heavily blurred conic
-    wedges converging from the top-right corner, tinted with the existing
-    `--accent-tint`/`--violet-tint` (no new hues), opacity ≤0.16, drifting on
-    a slow rotate+scale loop. Same "reimplement the effect in vanilla
-    CSS/JS, don't pull in the library" convention as Split Text and Shiny
-    Text below. `mask-image` confines it to a soft ellipse behind the text
-    column rather than letting it read across the full section — edges of
-    the section stay pure black on purpose, so the light reads as coming
-    from behind the typography, not from the page itself, and the section
-    doesn't feel visually disconnected from the black canvas around it.
+    intentionally quieter. `#identity`'s own `.identity-new__name` (see
+    `js/identity.js` above) carries the same category of static
+    `text-shadow` bloom (a hairline dark edge, a tight near-white spec, one
+    soft low-opacity `--violet-tint` ring) for the same reason — legibility
+    lift against `#identity`'s flat black now that the section has no
+    ambient background of its own (see above) — deliberately *not* layered
+    under `.shiny-text`'s own edge/depth shadow the way the previous
+    (now-removed) Identity implementation did: this rebuild uses `.shiny-text`
+    nowhere at all. Kept deliberately smaller-radius/lower-opacity than
+    `.about-me-line`'s own rings even though the type is much bigger:
+    `.identity-new__name`'s characters animate their own `filter:blur()`
+    during entrance (`js/identity.js`) — a wide/strong glow on that same
+    blurred element balloons into a visible soft flash mid-entrance instead
+    of staying felt-not-noticed.
+  - `.about-me-glow`: one static `radial-gradient`, nothing else. Replaced an
+    earlier `.about-me-rays` (a vanilla-CSS take on React Bits' Side Rays,
+    https://reactbits.dev/backgrounds/side-rays — two heavily blurred conic
+    wedges drifting on a slow rotate+scale loop) that read as too much
+    motion/weight for what should be a barely-there depth cue, and risked
+    the same "unintended purple glow" failure mode the old (now-removed)
+    Identity section's own ambient blob produced — see "`#identity` stays
+    plain black" above. `--hero-indigo` (the site's own darkest ambient hue,
+    already used in the site-wide ambient gradient — see Colors) at
+    `rgba(46,30,99,0.16)` fading to fully transparent well inside the
+    section's own edges, so top/bottom/left/right stay pure black regardless
+    of viewport size. No blur filter, no pseudo-elements, no `animation`, no
+    `@keyframes` — one paint, forever; don't reintroduce continuous motion or
+    a second hue here without updating this line first.
 - **Skill confidence ring** (`#skills`, see `.skill-ring`): a radial
   stroke-dasharray ring, not a linear progress bar — deliberately, since a
   resume-style bar reads as a rating out of a checklist rather than a
@@ -360,21 +412,23 @@ Guidance:
   - "Premium" comes from this site's own vocabulary, not glass/blur/drop-shadow — the Elevation &
     Depth rule against additive shadows/glass on foreground chrome still applies here. Depth is one
     restrained ambient glow behind the wheel (`.fast-travel__glow`: blurred, low-opacity, `--accent`
-    only, invisible until open) — a fourth instance of the same narrow, scoped "blurred glow behind
-    an interactive element" exception already granted to the Skill ring, `.about-me-rays`, and the
-    Flowing Menu's marquee gradients (see their own bullets). No card, panel, or box ever appears
+    only, invisible until open) — a third instance of the same narrow, scoped "blurred glow behind
+    an interactive element" exception already granted to the Skill ring and the Flowing Menu's
+    marquee gradients (see their own bullets; `.about-me-glow` is a related but separate "ambient
+    background" exception, not this one — see its own bullet). No card, panel, or box ever appears
     behind an item — just the trigger's own dot motif repeated smaller per item, and plain Geist
     labels directly on the canvas.
   - Each destination auto-maps to an existing section (My Projects → `#work`, Identity →
-    `#identity` — name + the Age/Education/Degree/Current Status facts only, a deliberately
-    separate destination from About Me's own prose scene right after it — About Me → `#about-me`,
-    Software & Skills → `#skills`, Open For → `#availability`, Social Media → `#contact`, whose
-    Flowing Menu already carries the real LinkedIn URL). Selecting one runs a custom scroll on the
-    site's own `signature-ease`, not the browser default — and, for the four destinations that land
-    inside a scroll-scrubbed sticky-pinned *scene* (`#identity`/`#about-me`/`#skills`/
-    `#availability`, all built by `js/scenes.js`), lands partway into that scene's own track, inside
-    its "hold" window (after every line has built in, before its group-exit begins) rather than at
-    the track's raw top, which would otherwise show a scene still at opacity:0. These landing points
+    `#identity` — name + the Age/Department/Status lines only, a deliberately separate destination
+    from About Me's own prose scene right after it — About Me → `#about-me`, Software & Skills →
+    `#skills`, Open For → `#availability`, Social Media → `#contact`, whose Flowing Menu already
+    carries the real LinkedIn URL). Selecting one runs a custom scroll on the site's own
+    `signature-ease`, not the browser default — and, for the four destinations that land inside a
+    scroll-scrubbed sticky-pinned *scene* (`#identity`/`#about-me`/`#skills`/`#availability` — the
+    latter three built by `js/scenes.js`, `#identity` by its own `js/identity.js`, see Components),
+    lands partway into that scene's own track, inside its "hold" window (after every line has built
+    in, before its group-exit begins) rather than at the track's raw top, which would otherwise
+    show a scene still at opacity:0. These landing points
     are plain literals in `js/fast-travel.js`, kept in manual lockstep with `js/scenes.js`'s own
     range/exitStart constants — the same kind of manual lockstep that file already keeps with its
     CSS track heights, not a new fragility.
@@ -390,14 +444,20 @@ Guidance:
     fast diagonal flick) — belt-and-suspenders, not either/or.
 - **Shiny text:** the gradient-fill/specular-sweep treatment on `.hero-name`,
   factored into a standalone `.shiny-text` class so it can be reused rather
-  than redefined. Exactly two uses on the whole site — the Hero name and the
-  identity scene's repeated "KAAN ACAR" — is the ceiling, not a floor; the
-  Software & Skills and Open For headings earn hierarchy from Poster-family
-  scale/tracking instead, and About Me has no heading at all (see Components,
-  About Me redesign) so the question doesn't apply there. Don't add a third
-  use without removing this line first. `#about-me`'s own soft `text-shadow`
+  than redefined. Exactly one use on the whole site — the Hero name — is the
+  ceiling, not a floor; the Software & Skills and Open For headings earn
+  hierarchy from Poster-family scale/tracking instead, and About Me has no
+  heading at all (see Components, About Me redesign) so the question doesn't
+  apply there. `#identity`'s name used to be a second use; the rebuilt
+  `.identity-new__name` (see Components) deliberately doesn't reach for
+  `.shiny-text` at all — its earlier gradient-fill treatment is exactly what
+  produced the "purple ghost" artifact this rebuild exists to avoid, and its
+  own static `text-shadow` bloom is the same quieter category `#about-me`
+  already uses (see below), not a shiny-text use. Don't add a second use
+  without removing this line first. `#about-me`'s own soft `text-shadow`
   bloom (see Components) is a deliberately different, quieter category of
-  effect and isn't a third use.
+  effect and isn't a second use — nor is `#identity`'s own, for the same
+  reason.
 
 ## Do's and Don'ts
 
@@ -421,9 +481,10 @@ Guidance:
   near-sharp, nothing in between.
 - **Don't** add a hero-style glow, shine sweep, or shimmer to more than one
   moment per page — scarcity is what makes the existing shiny-text accent
-  read as intentional rather than decorative noise. (`#about-me`'s quiet,
-  static `text-shadow` bloom is a different, more restrained category of
-  effect — see Components — and isn't governed by this rule.)
+  read as intentional rather than decorative noise. (`#about-me`'s and
+  `#identity`'s own quiet, static `text-shadow` blooms are a different, more
+  restrained category of effect — see Components — and aren't governed by
+  this rule.)
 - **Don't** silently widen the type or color system to solve a one-off
   layout problem — if the existing tokens can't express something, that's a
   signal to revisit the layout, not to add a token.

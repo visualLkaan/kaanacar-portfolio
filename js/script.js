@@ -120,7 +120,14 @@ var PROJECTS = [
     pdfPagesInGallery: false, // the gallery is the one real artwork plate below, not this cover
     extraImages: [
       'assets/projects/messi/messi-artwork.jpg'
-    ] }
+    ] },
+  // unlike the pdf-only projects above, MOLA has its own dedicated cover photo -- so unlike
+  // those, page 1 of its pdf is real gallery content rather than a redundant cover render, and
+  // is included in the gallery accordingly (see the `project.cover` check in
+  // loadPdfGalleryItems() below)
+  { id: 'mola', title: 'MOLA', category: 'Brand Identity', year: '2026', size: 'md', type: 'image',
+    cover: 'assets/projects/mola/main-photo.jpeg',
+    pdf: 'assets/projects/mola/mola-brand-identity.pdf' }
 ];
 
 // deterministic gradient palette -- every tone used anywhere (cards, gallery plates, supporting
@@ -242,7 +249,12 @@ function loadPdfGalleryItems(project) {
   return getPdfDocument(project).then(function (doc) {
     var pageNumbers = [];
     if (project.pdfPagesInGallery !== false) {
-      for (var p = 2; p <= doc.numPages; p++) pageNumbers.push(p);
+      // page 1 is only skipped here because it's already shown elsewhere as the live-rendered
+      // cover (see getProjectMainImageEl()/buildProjectCard() above) -- a project with its own
+      // separate `cover` image never renders page 1 anywhere else, so it belongs in the gallery
+      // too instead of being silently dropped
+      var startPage = project.cover ? 1 : 2;
+      for (var p = startPage; p <= doc.numPages; p++) pageNumbers.push(p);
     }
     return Promise.all(pageNumbers.map(function (p) {
       return renderPdfPageToUrl(project, p, 2).then(function (url) {
@@ -438,6 +450,17 @@ function getProjectPalette(project) {
   // match whatever sheet is actually placed at this path
   var config = { src: 'assets/loader/peeps.png', rows: 15, cols: 7 };
 
+  // perf: the canvas backing-store resolution, independent of devicePixelRatio. Every peep is
+  // drawn at exactly its sprite cell's own native size (see createPeeps()/peep.setRect() below --
+  // rectWidth/rectHeight in, peep.width/peep.height out, always equal, never scaled), so the sheet
+  // itself already caps how much real detail exists at 1 canvas pixel per CSS pixel -- rendering
+  // the backing store any larger (the usual devicePixelRatio "retina canvas" multiplier) just makes
+  // the browser raster + composite up to ~4x more pixels for up to 105 peeps every single frame,
+  // for zero extra visible detail. The CSS-to-physical-pixel upscale still happens either way; at
+  // scale 1 it happens once, for the whole canvas layer, as ordinary GPU layer compositing, instead
+  // of once per peep per frame inside this render loop.
+  var CANVAS_SCALE = 1;
+
   // ---- utils (verbatim from the source) ----
   function randomRange(min, max) { return min + Math.random() * (max - min); }
   function randomIndex(array) { return randomRange(0, array.length) | 0; }
@@ -499,33 +522,41 @@ function getProjectPalette(project) {
         peep.height = r[3];
         peep.drawArgs = [peep.image].concat(r, [0, 0, peep.width, peep.height]);
       },
+      // perf: setTransform(...) + no save/restore instead of save()/translate()/scale()/restore().
+      // save()/restore() snapshot the *entire* 2D context state (transform, clip, fillStyle,
+      // globalAlpha, shadow props, etc.) on every call; setTransform() only overwrites the matrix,
+      // which is the only piece of state this ever touches, so it's materially cheaper at 100+
+      // peeps/frame -- same math (translate to peep.x/y, then flip by scaleX) and pixel-identical
+      // output, just without the redundant state stack push/pop per peep, and without a per-peep
+      // devicePixelRatio multiply on top (see CANVAS_SCALE above -- the backing store itself is
+      // already at the right resolution, so this matrix never needs to touch dpr at all).
       render: function (c) {
-        c.save();
-        c.translate(peep.x, peep.y);
-        c.scale(peep.scaleX, 1);
+        c.setTransform(peep.scaleX, 0, 0, 1, peep.x, peep.y);
         c.drawImage(peep.image, peep.rect[0], peep.rect[1], peep.rect[2], peep.rect[3], 0, 0, peep.width, peep.height);
-        c.restore();
       }
     };
     peep.setRect(rect);
     return peep;
   }
 
-  // ---- main (verbatim from the source) ----
+  // ---- main (verbatim from the source, aside from spriteSource/spriteWidth/spriteHeight below --
+  // see the decode pipeline further down) ----
   var img = document.createElement('img');
+  var spriteSource = null;   // actual drawImage() source: an ImageBitmap once decoded, else img
+  var spriteWidth = 0, spriteHeight = 0;
   var stage = { width: 0, height: 0 };
   var allPeeps = [], availablePeeps = [], crowd = [];
 
   function createPeeps() {
     var rows = config.rows, cols = config.cols;
-    var width = img.naturalWidth, height = img.naturalHeight;
+    var width = spriteWidth, height = spriteHeight;
     var total = rows * cols;
     var rectWidth = width / rows;
     var rectHeight = height / cols;
 
     for (var i = 0; i < total; i++) {
       allPeeps.push(createPeep({
-        image: img,
+        image: spriteSource,
         rect: [(i % rows) * rectWidth, ((i / rows) | 0) * rectHeight, rectWidth, rectHeight]
       }));
     }
@@ -558,19 +589,21 @@ function getProjectPalette(project) {
 
   function render() {
     if (!canvas) return;
+    // reset to identity before clearing -- setTransform below is absolute, not relative like the
+    // old save()/scale()/restore() dance, so nothing here needs a matching restore() of its own
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.save();
-    ctx.scale(devicePixelRatio, devicePixelRatio);
-    crowd.forEach(function (peep) { peep.render(ctx); });
-    ctx.restore();
+    // plain indexed loop instead of crowd.forEach(fn) -- avoids allocating a new closure every
+    // single frame (this runs on gsap.ticker, i.e. once per rAF) for up to ~100 peeps
+    for (var i = 0; i < crowd.length; i++) { crowd[i].render(ctx); }
   }
 
   function resize() {
     if (!canvas) return;
     stage.width = canvas.clientWidth;
     stage.height = canvas.clientHeight;
-    canvas.width = stage.width * devicePixelRatio;
-    canvas.height = stage.height * devicePixelRatio;
+    canvas.width = stage.width * CANVAS_SCALE;
+    canvas.height = stage.height * CANVAS_SCALE;
 
     crowd.forEach(function (peep) { peep.walk.kill(); });
     crowd.length = 0;
@@ -590,7 +623,39 @@ function getProjectPalette(project) {
     setTimeout(playTypeEntrance, CROWD_LEAD_MS);
   }
 
-  img.onload = init;
+  // Pre-decode the ~3600x2268 sprite sheet off the critical rendering path, before init()/render()
+  // ever touch it -- without this, the browser can end up doing the full pixel decode synchronously
+  // on the very first drawImage() call instead, i.e. exactly when the crowd is meant to start
+  // walking, causing a stutter right at the loader's opening beat.
+  //   createImageBitmap() is preferred where available: it decodes asynchronously (off the main
+  // thread) AND hands back a bitmap that's a cheaper drawImage() source than a live <img> element
+  // for repeated per-frame sampling (no per-draw CSS/orientation bookkeeping), while still being the
+  // same single shared sprite-sheet texture underneath -- every peep still samples a sub-rect of
+  // this one image, so the browser can batch same-texture draw calls the same way it always could.
+  // Falls back to img.decode(), then to the bare loaded <img>, on browsers without createImageBitmap.
+  function beginCrowd(source, width, height) {
+    spriteSource = source;
+    spriteWidth = width;
+    spriteHeight = height;
+    init();
+  }
+  img.onload = function () {
+    if (window.createImageBitmap) {
+      createImageBitmap(img).then(function (bitmap) {
+        beginCrowd(bitmap, bitmap.width, bitmap.height);
+      }, function () {
+        beginCrowd(img, img.naturalWidth, img.naturalHeight);
+      });
+    } else if (img.decode) {
+      img.decode().then(function () {
+        beginCrowd(img, img.naturalWidth, img.naturalHeight);
+      }, function () {
+        beginCrowd(img, img.naturalWidth, img.naturalHeight);
+      });
+    } else {
+      beginCrowd(img, img.naturalWidth, img.naturalHeight);
+    }
+  };
   img.onerror = function () {
     // sprite sheet not in place yet -- fail open rather than leave the site stuck behind a
     // loader that can never finish
@@ -1021,13 +1086,24 @@ afterLoader(function () {
   }
 })();
 
-// ---- Post-blackout scenes (identity, about me, software & skills, availability): lazily
-// imported, same code-split convention as the Prism mount above. See js/scenes.js for the reveal
-// engine; that module itself no-ops under reducedMotion. Deferred via afterLoader() -- these
-// scenes are far below the fold, nothing about them is needed until well after the loader/hero
-// hand-off. ----
+// ---- Identity scene: lazily imported, same code-split convention as the mounts below. See
+// js/identity.js -- a small, deliberately self-contained module (not part of js/scenes.js's
+// shared engine); that module itself no-ops under reducedMotion. Deferred via afterLoader() --
+// far below the fold, nothing about it is needed until well after the loader/hero hand-off. ----
 afterLoader(function () {
-  var mount = document.getElementById('identity-content');
+  var mount = document.getElementById('identity-new');
+  if (!mount) return;
+  import('./identity.js').then(function (mod) {
+    mod.initIdentity();
+  });
+});
+
+// ---- Post-blackout scenes (about me, software & skills, availability): lazily imported, same
+// code-split convention as the Prism mount above. See js/scenes.js for the reveal engine; that
+// module itself no-ops under reducedMotion. Deferred via afterLoader() -- these scenes are far
+// below the fold, nothing about them is needed until well after the loader/hero hand-off. ----
+afterLoader(function () {
+  var mount = document.getElementById('about-me-content');
   if (!mount) return;
   import('./scenes.js').then(function (mod) {
     mod.initScenes();

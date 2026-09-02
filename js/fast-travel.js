@@ -7,17 +7,17 @@
 // each destination scene's own "hold" window rather than at a scroll-track's raw top.
 //
 // Why a custom scroll instead of a plain `href="#id"` jump: four of the six destinations
-// (#identity, #about-me, #skills, #availability) are scroll-scrubbed, sticky-pinned scenes
-// (js/scenes.js) whose content is only fully built/visible partway through their own track's
-// scroll range. A bare anchor jump lands at the track's top -- every line of a scene still at
-// opacity:0 -- which would make Fast Travel feel broken rather than premium.
+// (#identity, #about-me, #skills, #availability) are scroll-scrubbed, sticky-pinned scenes whose
+// content is only fully built/visible partway through their own track's scroll range. A bare
+// anchor jump lands at the track's top -- every line of a scene still at opacity:0 -- which would
+// make Fast Travel feel broken rather than premium.
 // TRACK_TARGETS below encodes, per destination, roughly where in that track's own progress (0-1)
 // the content is fully assembled and still comfortably before its own exit phase begins -- computed
-// from the exact range/exitStart/stagger constants already in js/scenes.js (kept as plain literals
-// here, same as that file already keeps its own range numbers in manual lockstep with its CSS
-// track heights -- an established pattern in this codebase, not a new fragility). #work and
-// #contact are plain, unpinned sections, so they just get a normal "scroll its top into view"
-// target.
+// from the exact range/exitStart/stagger constants already in js/scenes.js for #about-me/#skills/
+// #availability, and in js/identity.js for #identity (kept as plain literals here, same as those
+// files already keep their own range numbers in manual lockstep with their CSS track heights -- an
+// established pattern in this codebase, not a new fragility). #work and #contact are plain,
+// unpinned sections, so they just get a normal "scroll its top into view" target.
 //
 // Reduced motion: the wheel's own open/close motion is pure CSS transitions, already zeroed by the
 // sitewide `*{ transition:none !important }` rule (css/style.css, end of file) -- nothing to do
@@ -62,23 +62,20 @@ export function initFastTravel() {
   function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
 
   // Per-destination landing point inside its own track's progress (0-1) -- see js/scenes.js
-  // for where these ranges and phases come from.
-  //   #identity (range 1972, exitStart 0.688): name + 4 facts, 5 lines, the last finishing its
-  //     build at t~0.645 -- a narrow 0.043-wide hold before exitStart (this scene's hold was
-  //     deliberately cut very short, see js/scenes.js's own comment on it). t=0.66 sits inside that
-  //     window with a small buffer on both sides, landing on "KAAN ACAR" + Age/Education/Degree/
-  //     Current Status fully built and centered -- deliberately distinct from About Me's own scene
-  //     right after it, which is a separate destination.
-  //   #about-me (range 2151, exitStart 0.652): 5 lines stagger-build, the last finishing at
-  //     t~0.521 -- t=0.54 lands just past that (comfortably inside the "immediately visible,
-  //     already centered" hold, not mid-build) while keeping maximum buffer before exitStart, so a
-  //     visitor lands squarely on the fully-assembled composition rather than glimpsing the tail of
-  //     its own build or the start of its own exit.
+  // for where these ranges and phases come from (js/identity.js for #identity specifically).
+  //   #identity (range 1650, exitStart 0.76): name finishes at t~0.30, the last meta line at
+  //     t~0.66 -- t=0.70 sits just past that with a comfortable buffer before exitStart, landing
+  //     on "KAAN ACAR" + Age/Department/Status fully built and centered.
+  //   #about-me (range 2600, exitStart 0.74): label + 5 sentences, 6 lines stagger-build, the
+  //     last finishing at t~0.595 -- t=0.62 lands just past that (comfortably inside the
+  //     "immediately visible, already centered" hold, not mid-build) while keeping maximum buffer
+  //     before exitStart, so a visitor lands squarely on the fully-assembled composition rather
+  //     than glimpsing the tail of its own build or the start of its own exit.
   //   #skills (range 2226, exitStart 0.673): 7 lines finishing at t~0.618 -- t=0.64.
   //   #availability (range 1338, exitStart 0.581): 4 lines finishing at t~0.515 -- t=0.54.
   var TRACK_TARGETS = {
-    '#identity': { trackId: 'identity-scroll-track', range: 1972, t: 0.66 },
-    '#about-me': { trackId: 'about-me-scroll-track', range: 2151, t: 0.54 },
+    '#identity': { trackId: 'identity-new-track', range: 1650, t: 0.70 },
+    '#about-me': { trackId: 'about-me-scroll-track', range: 2600, t: 0.62 },
     '#skills': { trackId: 'skills-scroll-track', range: 2226, t: 0.64 },
     '#availability': { trackId: 'availability-scroll-track', range: 1338, t: 0.54 }
   };

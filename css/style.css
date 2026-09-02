@@ -126,6 +126,11 @@ a:focus-visible, button:focus-visible, .carousel-card:focus-visible, .gallery-it
 #loader-canvas{
   position:absolute; left:0; right:0; bottom:0;
   width:100%; height:90vh;
+  /* the crowd repaints its own pixels every frame via its own internal render loop, never through
+     layout/style -- contain tells the browser this element's internals can never affect anything
+     outside its own box, so those internal repaints skip any outward layout/style recalc check and
+     the canvas can be composited as its own isolated layer */
+  contain:layout style paint;
 }
 /* independent typography layer, above the crowd -- shares no positioning/coordinate math with
    the canvas at all, just a plain centered stack of lines. Its own entrance/exit is driven by a
@@ -458,10 +463,10 @@ header.frame-away{ top:0; }
    same comma-b/spread/color-stop shape, ported from its background-position tween into a CSS
    keyframe. No cursor reactivity here (unlike the design this replaces) -- deliberately calm and
    time-driven only, muted by the sitewide prefers-reduced-motion rule (`*{ animation:none }`).
-   Extracted from `.hero-name .row` into this standalone, reusable class so the identity block's
-   "KAAN ACAR" (see #identity) can reuse the exact same treatment rather than duplicating it --
-   per DESIGN.md, this stays the only other use on the site; section headings elsewhere earn
-   hierarchy from type/spacing, not from adding a third shiny moment. */
+   Extracted from `.hero-name .row` into this standalone, reusable class so any other large
+   typographic moment can reuse the exact same treatment rather than duplicating it -- per
+   DESIGN.md, section headings elsewhere earn hierarchy from type/spacing, not from adding a
+   second shiny moment. */
 .shiny-text{
   background-image:
     linear-gradient(
@@ -828,32 +833,27 @@ section{ padding:130px 0 60px; }
 /* sr-only: visually hidden but accessible heading utility for the pinned cinematic sections below
    that have no visible ".section-head" numeral/rule chrome (#identity, #about-me, #skills,
    #availability) -- keeps each one identifiable to screen-reader/landmark navigation without
-   adding visible chrome that would compete with their own content. */
+   adding visible chrome that would compete with their own content. Also used inside #identity's
+   own name heading to carry the accessible "KAAN ACAR" string alongside the visual, per-character
+   split spans (aria-hidden) -- see IDENTITY below. */
 .sr-only{
   position:absolute; width:1px; height:1px; padding:0; margin:-1px;
   overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
 }
 
-/* ---------- IDENTITY (cinematic scene: name + facts only) ---------- */
-/* Opens on its own opaque #000 -- #work's colored wash already fades out via IntersectionObserver
-   as it leaves the viewport (see js/script.js), so the hand-off from #work is a plain dark-to-dark
-   cut with no bridging needed, the same pattern already used between #availability and #contact.
-   See js/scenes.js for the reveal engine: the ambient bg
-   fades in, then the name and each fact stagger-build top to bottom, holds fully assembled for a
-   stretch of scroll, then the whole .identity-content container fades/lifts out together as one
-   unit before #about-me begins. Now carries only 5 lines (name + 4 facts) -- the About Me passage
-   that used to live here moved into its own #about-me scene/track below it, so this scene stays
-   short and the giant name isn't competing with a wall of body copy for the same screen. 1972px
-   preserves the exact same build/exit pixel-durations as a previous 2200px pass -- only the hold
-   (the dead scroll between the build finishing and the exit starting) was cut, 308px -> 80px, per
-   feedback that the reveal animations themselves should stay exactly as slow/elegant as they were,
-   just reached with less waiting around them. */
-.identity-scroll-track{
+/* ---------- IDENTITY (cinematic scene: name + 3 meta lines, from-scratch rebuild) ---------- */
+/* Opens on its own opaque #000 -- see index.html's #identity comment for the full hand-off/
+   architecture rationale. Reveal is driven entirely by js/identity.js, a small dedicated module
+   independent of js/scenes.js's shared engine (see that file's own header comment for why) --
+   1650px keeps this scene's own scroll-track height in manual lockstep with the RANGE constant in
+   js/identity.js, the same "kept in sync as plain literals, not derived" convention
+   js/scenes.js/js/fast-travel.js already use for their own track heights. */
+.identity-new-track{
   position:relative;
-  height:calc(100svh + 1972px);
+  height:calc(100svh + 1650px);
 }
 @media (prefers-reduced-motion: reduce){
-  .identity-scroll-track{ height:100svh; }
+  .identity-new-track{ height:100svh; }
 }
 
 #identity{
@@ -865,50 +865,11 @@ section{ padding:130px 0 60px; }
   padding:calc(var(--frame-h) + 40px) var(--edge) 60px;
 }
 
-/* Section-scoped reuse of the site-wide ambient-blob mechanism (see #ambient-bg above) for this
-   one cinematic beat -- a deliberate, narrow exception to "one fixed ambient canvas," the same
-   kind of scoped-background precedent #hero-prism already sets. Sharing the .ambient-blob class
-   means js/script.js's existing mouse-parallax loop drives these blobs too, with zero new JS for
-   that part. Only #identity gets this treatment -- #about-me/#skills/#availability stay plain black
-   so multiple sections in a row don't each sprout their own glow and compete with the content. */
-.identity-bg{
-  position:absolute; inset:0;
-  z-index:0;
-  overflow:hidden;
-  pointer-events:none;
-  opacity:0;
-  will-change:transform, opacity, filter;
-}
-.identity-blob{
-  position:absolute;
-  border-radius:50%;
-  filter:blur(95px);
-}
-.identity-blob-1{
-  width:50vw; height:50vw; max-width:620px; max-height:620px;
-  top:-8%; left:-6%;
-  background:radial-gradient(circle, var(--hero-indigo) 0%, transparent 70%);
-  opacity:0.7;
-}
-.identity-blob-2{
-  width:44vw; height:44vw; max-width:560px; max-height:560px;
-  bottom:-10%; right:-8%;
-  background:radial-gradient(circle, var(--violet) 0%, transparent 70%);
-  opacity:0.5;
-}
-.identity-blob-3{
-  width:34vw; height:34vw; max-width:420px; max-height:420px;
-  bottom:8%; left:22%;
-  background:radial-gradient(circle, var(--hero-rose) 0%, transparent 70%);
-  opacity:0.4;
-}
-
-/* Content column: opacity stays 1 by default (js/scenes.js only writes to it for the group-exit
-   fade, which starts at 1 and only moves once the scene's own scroll reaches its exit phase) so a
-   visitor whose JS fails to load for any reason still sees the section, not permanent blackness.
-   Individual lines/words below default to opacity:0 -- an accepted tradeoff --
-   reduced-motion visitors get the guaranteed-visible fallback via the media query below. */
-.identity-content{
+/* Plain black, no ambient background -- matches #skills/#availability (see DESIGN.md Components,
+   "#identity stays plain black"). Legibility for the name comes from its own static text-shadow
+   bloom below, a foreground effect, not a background one -- don't reintroduce a blob/glow layer
+   here. */
+.identity-new{
   position:relative; z-index:1;
   width:100%; max-width:1320px;
   margin:0 auto;
@@ -917,129 +878,112 @@ section{ padding:130px 0 60px; }
   opacity:1;
 }
 
-/* Pushed again past a previous 4.4-11.5rem pass -- still felt too small for the available canvas.
-   14rem now deliberately, clearly exceeds the Hero name's own 10.5rem ceiling: this scene has
-   nothing else sharing the frame with it, so it earns the biggest single moment on the site.
-   line-height stays tight (0.95, matching the Hero name's own 0.92) so the extra size reads as a
-   confident "shout," not just bigger text. */
-.identity-name{
+/* Suggested clamp values, desktop and mobile, per spec -- deliberately smaller than the old
+   .identity-name's 14rem ceiling; this is a from-scratch design, not a restyle. Poster (Bebas
+   Neue), the site's one "shout" family, same as every other oversized name/headline on the site. */
+.identity-new__name{
   font-family:var(--poster);
   font-weight:400;
-  letter-spacing:0.01em;
-  font-size:clamp(4.6rem, 18vw, 14rem);
-  line-height:0.95;
-}
-
-/* Facts widened from a narrow centered stack into a horizontal, divided strip -- uses the section's
-   actual width instead of a small column marooned in the middle of the frame. Collapses back to a
-   vertical stack (no dividers) below 640px, where a divided row would wrap awkwardly. */
-.identity-facts{
-  margin-top:60px;
-  display:flex; flex-wrap:wrap; justify-content:center; align-items:stretch;
-}
-.identity-fact{
-  opacity:0;
-  display:flex; flex-direction:column; align-items:center; gap:9px;
-  padding:4px 44px;
-  border-left:1px solid var(--line);
-}
-.identity-fact:first-child{ border-left:none; }
-.identity-fact__label{
-  font-family:var(--mono);
-  font-size:0.88rem;
-  letter-spacing:0.1em;
   text-transform:uppercase;
-  color:var(--muted);
-}
-.identity-fact__value{
-  font-family:var(--geist);
-  font-weight:500;
-  font-size:clamp(1.2rem, 1.75vw, 1.55rem);
+  letter-spacing:0.02em;
+  line-height:0.95;
+  font-size:clamp(4rem, 9vw, 9rem);
   color:var(--paper);
+  /* Static text-shadow bloom -- the same restrained category of effect as .about-me-line's own
+     glow (see DESIGN.md Components), not .shiny-text: a hairline dark edge for definition, a tight
+     near-white spec for crispness, one soft --violet-tint ring for the "subtle purple glow" --
+     never a gradient fill, never background-clip:text, never animated. This is the entire glow;
+     nothing here runs on a timer or a scroll listener, so it costs nothing once painted. */
+  text-shadow:
+    0 1px 0 rgba(10, 6, 30, 0.45),
+    0 0 3px rgba(245, 238, 255, 0.35),
+    0 0 22px rgba(155, 144, 242, 0.18);
 }
 @media (max-width:640px){
-  .identity-facts{ flex-direction:column; gap:20px; }
-  .identity-fact{ border-left:none; padding:0; }
+  .identity-new__name{ font-size:clamp(3rem, 15vw, 5rem); }
+}
+
+/* Per-character reveal spans (js/identity.js's own splitChars(), not js/scenes.js's splitWords()/
+   .split-word) -- opacity/filter/transform are written directly by that module's scroll-progress
+   handler, never by a CSS animation/transition, so there is nothing here for
+   prefers-reduced-motion to override: with JS's early-return under reduced motion, this element
+   simply never gets split and the plain text underneath renders at its own default (fully
+   visible, unblurred, untransformed) state immediately. */
+.identity-new__char{
+  display:inline-block;
+  will-change:transform, opacity, filter;
+}
+
+.identity-new__meta{
+  margin-top:44px;
+  display:flex; flex-direction:column; align-items:center;
+  gap:12px;
+}
+
+/* Smaller and far more restrained than the name, per spec -- mono, the site's own
+   numerals/labels/tags register (see DESIGN.md Typography), muted rather than full-white. Reveals
+   as a whole line (js/identity.js), never split into characters -- a short "LABEL: VALUE" row
+   splitting word-by-word or letter-by-letter would read as noise, not signal, the same reasoning
+   the old .identity-fact/.about-me-line rows already established. No default opacity:0 here,
+   deliberately: js/identity.js sets each line's real starting opacity synchronously on mount,
+   before first paint, the same guarantee the rest of this site's scroll-reveal text already
+   relies on -- and it means a reduced-motion visitor (whose JS never runs) sees this at its plain,
+   fully-visible CSS default with no override needed. */
+.identity-new__item{
+  font-family:var(--mono);
+  font-size:0.92rem;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:var(--muted);
+  will-change:transform, opacity, filter;
+}
+@media (max-width:640px){
+  .identity-new__item{ font-size:0.82rem; }
 }
 
 /* ---------- ABOUT ME (separate cinematic scene, own build-hold-exit) ---------- */
 /* No heading, no italic-serif "editorial caption" register here (deliberately breaking from the
    Display family's usual "about-page copy" role, see DESIGN.md Typography) -- this passage is an
-   art-directed editorial statement in the site's sans body family (Inter), large-scale and
-   left-set rather than centered, with its own quiet ambient rays background. 2151px keeps the same
-   per-line/hold/exit pixel-durations as a previous 2303px, 6-line (heading + 5 sentences) pass --
-   the heading's own removal is the entire size difference, nothing was re-timed. */
+   art-directed editorial statement, upright (non-italic) Fraunces (see .about-me-line below) at a
+   large scale, set in a truly centered column (see .about-me-copy) with its own quiet static
+   ambient glow. 2600px gives this redesign's 6-line stagger (the new label plus 5 sentences) a
+   deliberately wider, more unhurried build than the previous 2151px/5-line pass -- a wider scroll
+   range is the entire point of "the reveal should feel cinematic," not just more content to fit. */
 .about-me-scroll-track{
   position:relative;
-  height:calc(100svh + 2151px);
+  height:calc(100svh + 2600px);
 }
 @media (prefers-reduced-motion: reduce){
   .about-me-scroll-track{ height:100svh; }
 }
 
+/* align-items:flex-start (not :center) plus a viewport-relative top padding lands the column in
+   the upper-middle of the section rather than dead-center, so the fixed-height composition reads
+   as flowing downward through generous space below it rather than sitting pinned in the exact
+   middle of the screen. */
 #about-me{
   min-height:100svh;
   position:sticky; top:0;
-  display:flex; align-items:center; justify-content:center;
+  display:flex; align-items:flex-start; justify-content:center;
   overflow:hidden;
   background:#000;
-  padding:calc(var(--frame-h) + 40px) var(--edge) 60px;
+  padding:calc(var(--frame-h) + clamp(72px, 16vh, 176px)) var(--edge) 60px;
 }
 
-/* Ambient background, About Me only: a vanilla-CSS take on React Bits' Side Rays
-   (https://reactbits.dev/backgrounds/side-rays) -- the same "reimplement, don't import the
-   library" convention already used for Split Text/Shiny Text elsewhere in this file. Two soft,
-   heavily blurred conic wedges converge from the top-right corner (this component's own default
-   origin), tinted with the site's existing --accent-tint/--violet-tint -- no new hues -- and drift
-   with a slow rotate+scale breathing instead of the source's WebGL shader flicker: calmer, and
-   automatically frozen by the sitewide `*{ animation:none }` reduced-motion rule with zero extra
-   code. Kept deliberately faint (opacity 0.09-0.16, heavy blur) per "felt before noticed, never
-   overpowers the typography" -- a second, distinct ambient exception alongside #identity's blob
-   glow (see DESIGN.md Components): still one per section, never layered with another glow in the
-   same passage.
-   `mask-image` confines the whole layer to a soft ellipse roughly behind the text column (40% from
-   left -- where .about-me-copy actually sits -- 50% vertically) rather than letting it read across
-   the full section: fully visible out to 22% of the ellipse's own radius, fading to fully
-   transparent by 72%, well inside the box edges -- so top/bottom/left/right stay pure black
-   regardless of viewport size, and the light reads as coming from behind the typography (a hidden
-   spotlight), not from the page itself. */
-.about-me-rays{
+/* Ambient glow, About Me only: one static radial-gradient, nothing else -- replaces a previous
+   .about-me-rays (two blurred, continuously-rotating conic-gradient wedges) that read as too much
+   motion/weight for what should be a barely-there depth cue, and risked the same "unintended purple
+   glow" failure mode the old Identity section's own ambient blob produced (see DESIGN.md
+   Components, "#identity stays plain black"). --hero-indigo (the site's own darkest ambient hue,
+   already used in the site-wide ambient gradient -- see Colors) at a near-invisible opacity, fading
+   to fully transparent well inside the section's own edges so top/bottom/left/right stay pure
+   black. No blur filter, no pseudo-elements, no animation, no keyframes -- one paint, forever,
+   costs nothing beyond that first paint regardless of how long the section stays on screen. */
+.about-me-glow{
   position:absolute; inset:0;
   z-index:0;
-  overflow:hidden;
   pointer-events:none;
-  -webkit-mask-image:radial-gradient(ellipse 58% 62% at 40% 50%, #000 0%, #000 22%, rgba(0,0,0,0.5) 45%, transparent 72%);
-  mask-image:radial-gradient(ellipse 58% 62% at 40% 50%, #000 0%, #000 22%, rgba(0,0,0,0.5) 45%, transparent 72%);
-}
-.about-me-rays::before,
-.about-me-rays::after{
-  content:'';
-  position:absolute;
-  top:-45%; right:-25%;
-  width:130%; height:190%;
-  background:conic-gradient(from 195deg at 100% 0%,
-    transparent 0deg,
-    var(--accent-tint) 10deg,
-    transparent 24deg,
-    transparent 46deg,
-    var(--violet-tint) 58deg,
-    transparent 72deg,
-    transparent 130deg
-  );
-  filter:blur(70px);
-  transform-origin:100% 0%;
-  animation:about-me-rays-drift 48s ease-in-out infinite;
-}
-.about-me-rays::before{ opacity:0.16; }
-.about-me-rays::after{
-  opacity:0.09;
-  filter:blur(100px);
-  animation-duration:64s;
-  animation-direction:reverse;
-}
-@keyframes about-me-rays-drift{
-  0%, 100%{ transform:rotate(-3deg) scale(1); }
-  50%{ transform:rotate(3deg) scale(1.04); }
+  background:radial-gradient(ellipse 62% 48% at 50% 38%, rgba(46,30,99,0.16) 0%, rgba(46,30,99,0.07) 42%, transparent 72%);
 }
 
 .about-me-content{
@@ -1049,27 +993,54 @@ section{ padding:130px 0 60px; }
   opacity:1;
 }
 
-/* Left-set, offset column rather than a centered block -- max-width controls line length to a
-   comfortable editorial measure (~60-70 characters at this size), and the margin-left offset
-   (rather than dead-center) is what reads as art-directed composition instead of a plain paragraph;
-   the surrounding negative space on the right is deliberate, not empty. */
+/* A true centered editorial column, not text-align:center -- the column itself
+   (.about-me-copy) sits on the page's own horizontal center via margin:0 auto, while every line
+   inside it stays left-aligned (see .about-me-line below), so it reads as a considered editorial
+   block rather than a centered slogan. max-width keeps the reading measure at a comfortable
+   ~60-70 characters per line at this size; the tablet/mobile media queries below narrow it further
+   without ever letting it touch the viewport edges. */
 .about-me-copy{
   display:flex; flex-direction:column;
-  gap:14px;
+  gap:30px;
+  width:100%;
   max-width:680px;
-  margin-left:clamp(0px, 6vw, 90px);
+  margin:0 auto;
+}
+@media (max-width:900px){
+  .about-me-copy{ max-width:560px; }
+}
+@media (max-width:640px){
+  .about-me-copy{ max-width:calc(100vw - 40px); gap:24px; }
+}
+
+/* Tiny, understated section label -- mono, uppercase, letter-spaced, the site's own
+   numerals/labels/tags register (see DESIGN.md Typography), never competing with the sentences
+   below it for attention. aria-hidden: the sr-only <h2> above already carries the accessible
+   "About Me" name, so this is a purely visual cue, not a second heading for assistive tech.
+   Block-mode reveal (js/scenes.js's revealBlock(), not Split Text) -- a two-word label cascading
+   in word-by-word would read as fussy, not restrained. Default opacity:0 is safe here the same way
+   it is for .skill-card/.availability-item: js/scenes.js sets this element's real starting opacity
+   synchronously on mount, before first paint. */
+.about-me-label{
+  font-family:var(--mono);
+  font-size:0.78rem;
+  letter-spacing:0.16em;
+  text-transform:uppercase;
+  color:var(--muted);
+  opacity:0;
+  margin-bottom:2px;
 }
 
 /* Fraunces restored (upright, not italic) after an Inter-sans pass read as too generic/UI-flat for
-   this passage -- the composition itself (left-set offset column, no heading, see .about-me-copy
-   above) is what solves "reads like a centered quote/poem," not the typeface, so Fraunces' own
-   editorial character can come back without reintroducing that problem. Deliberately still
-   `font-style:normal`, not italic -- italic was the other half of the original "poem" complaint,
-   so it stays off even though the family is back. Size/line-height/letter-spacing/layout are
-   unchanged from the Inter pass. Text stays white (--paper); depth comes from a restrained
-   multi-layer text-shadow bloom -- a hairline white edge for crispness, two --accent-tint rings,
-   and a very soft, wide --violet halo for a touch more perceived depth -- still low-opacity, never
-   a flat/opaque glow, never neon -- "felt, not noticed." */
+   this passage -- Fraunces' own editorial character reads as an editorial statement without
+   reintroducing the "centered quote/poem" complaint a centered column on its own might otherwise
+   risk, because the text inside still sets left, not centered (see .about-me-copy above).
+   Deliberately still `font-style:normal`, not italic -- italic was the other half of the original
+   "poem" complaint, so it stays off even though the family is back. Text stays white (--paper) on
+   the lead sentence; depth comes from a restrained multi-layer text-shadow bloom -- a hairline
+   white edge for crispness, two --accent-tint rings, and a very soft, wide --violet halo for a
+   touch more perceived depth -- still low-opacity, never a flat/opaque glow, never neon --
+   "felt, not noticed." */
 .about-me-line{
   font-family:var(--display);
   font-style:normal;
@@ -1086,7 +1057,16 @@ section{ padding:130px 0 60px; }
     0 0 110px rgba(91,79,224,0.06);
 }
 
-/* No opacity:0 here, deliberately -- matches .identity-name above. This is a 'words'-mode line
+/* Very subtle hierarchy: the lead sentence (.about-me-line alone, above) stays full opacity; every
+   sentence after it settles a touch dimmer -- a restrained cue, not a second color or a smaller
+   size. Compounds with each word's own JS-driven 0-1 opacity (revealWords() on js/scenes.js) rather
+   than replacing it -- a secondary line's own words still build in exactly the same way, they just
+   settle at ~0.84 instead of 1 once fully revealed. */
+.about-me-line--secondary{
+  opacity:0.84;
+}
+
+/* No opacity:0 here, deliberately. This is a 'words'-mode line
    (see js/scenes.js's stagger lineConfigs): revealWords() only ever sets opacity/blur/transform on
    the individual word <span> children it creates, never on this parent element. A parent stuck at
    opacity:0 would compound with every child's own opacity and stay invisible forever regardless of
@@ -1118,10 +1098,10 @@ section{ padding:130px 0 60px; }
 }
 
 @media (prefers-reduced-motion: reduce){
-  .identity-bg{ opacity:1; }
-  .identity-fact,
   .identity-heading,
+  .about-me-label,
   .about-me-line{ opacity:1; transform:none; filter:none; }
+  .about-me-line--secondary{ opacity:0.84; } /* keep the same static hierarchy cue -- unrelated to motion */
   .split-word{ opacity:1; transform:none; filter:none; }
 }
 

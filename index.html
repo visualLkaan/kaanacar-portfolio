@@ -62,11 +62,11 @@
      rather than pulled in, same convention as this project's other React Bits ports -- fanned across
      a right-opening arc rather than a full ring, since the trigger sits near the left edge and a
      full circle would clip off-screen. Each item auto-connects to an existing section: My Projects
-     -> #work, Identity -> #identity (name + facts only -- the first black section right after
-     Work, deliberately distinct from About Me's own prose passage below it), About Me ->
-     #about-me, Software & Skills -> #skills, Open For -> #availability, Social Media -> #contact
-     (the existing Flowing Menu scene, LinkedIn included there). See js/fast-travel.js for the
-     open/close logic and the cinematic-eased smooth scroll. -->
+     -> #work, Identity -> #identity (name + Age/Department/Status only -- the first black section
+     right after Work, deliberately distinct from About Me's own prose passage below it), About Me
+     -> #about-me, Software & Skills -> #skills, Open For -> #availability, Social Media ->
+     #contact (the existing Flowing Menu scene, LinkedIn included there). See js/fast-travel.js for
+     the open/close logic and the cinematic-eased smooth scroll. -->
 <div class="fast-travel" id="fast-travel">
   <button type="button" class="fast-travel__trigger" id="fast-travel-trigger"
     aria-haspopup="menu" aria-expanded="false" aria-controls="fast-travel-wheel">
@@ -154,65 +154,81 @@
   <div class="project-page__inner" id="project-page-inner"></div>
 </div>
 
-<!-- Cinematic identity scene: continues directly out of #work below it (#identity opens on its
-     own opaque #000 background, and #work's colored wash already fades out via
-     IntersectionObserver as it leaves the viewport -- see js/script.js -- so the hand-off is a
-     plain dark-to-dark cut, the same "no bridging needed" pattern already used between
-     #availability and #contact). Pins the same way #hero does. See js/scenes.js for the reveal
-     engine: an ambient-blob background
-     (section-scoped reuse of the site-wide mechanism, same precedent as #hero-prism) fades in
-     first, then the name and each fact -- split into words, each word its own tiny scroll-driven
-     cascade (a vanilla-CSS take on React Bits' Split Text) -- stagger-build top to bottom as one
-     continuous composition. Once fully built, the whole thing holds (reading time), then the
-     entire .identity-content container fades/lifts out together as one unit before #about-me
-     begins the same way. Nothing here is a CSS transition or a timer -- every value is a pure
-     function of this track's own scroll position, so it reverses exactly on scroll-up. Deliberately
-     just name + facts now -- the longer About Me passage lives in its own #about-me scene right
-     after this one, so the giant name has the frame to itself. -->
-<div class="identity-scroll-track" id="identity-scroll-track">
+<!-- Cinematic Identity scene: a from-scratch rebuild, fully independent of the reveal engine the
+     other scenes below share (see js/scenes.js) -- deliberately so, per an explicit performance
+     requirement that this scene never run a self-rescheduling per-frame loop. See js/identity.js:
+     a single scroll/resize listener (rAF-throttled to at most once per frame) computes this
+     track's own scroll progress the same way js/scenes.js's updateTargets() does, writes styles
+     only when that progress has actually moved, and does nothing at all once it settles -- not a
+     permanent loop, an idle listener. Opens on its own opaque #000 -- #work's colored wash already
+     fades out via IntersectionObserver as it leaves the viewport (see js/script.js), so the
+     hand-off is a plain dark-to-dark cut, no bridging needed, the same pattern used between
+     #availability and #contact below. Pins the same way #about-me/#skills/#availability do.
+     "KAAN ACAR" is split into individual character spans that cascade from blurred/low-opacity/
+     lowered to crisp/full-opacity/settled as the user scrolls, the three meta lines below following
+     with their own later stagger; once fully built the whole .identity-new container holds, then
+     fades/blurs/lifts out together as one unit before #about-me begins its own build -- the same
+     build-hold-group-exit shape the rest of this passage uses (see DESIGN.md Components), just
+     computed by this scene's own dedicated code rather than the shared engine. No shiny-text, no
+     gradient text, no background-clip:text, no continuously-running animation anywhere -- the name's
+     legibility against the flat black comes entirely from its own static text-shadow bloom, the
+     same restrained category of effect #about-me's own copy already uses (see DESIGN.md). -->
+<div class="identity-new-track" id="identity-new-track">
 <section id="identity">
-  <div class="identity-bg" id="identity-bg" aria-hidden="true">
-    <div class="ambient-blob identity-blob identity-blob-1" data-depth="0.8"></div>
-    <div class="ambient-blob identity-blob identity-blob-2" data-depth="1.1"></div>
-    <div class="ambient-blob identity-blob identity-blob-3" data-depth="0.6"></div>
-  </div>
   <h2 class="sr-only">Identity</h2>
-  <div class="identity-content" id="identity-content">
-    <p class="identity-name shiny-text" id="line-name">KAAN ACAR</p>
-    <div class="identity-facts">
-      <p class="identity-fact" id="line-fact-1"><span class="identity-fact__label">Age</span><span class="identity-fact__value">21 Years Old</span></p>
-      <p class="identity-fact" id="line-fact-2"><span class="identity-fact__label">Education</span><span class="identity-fact__value">Bahçeşehir University</span></p>
-      <p class="identity-fact" id="line-fact-3"><span class="identity-fact__label">Degree</span><span class="identity-fact__value">Visual Communication Design</span></p>
-      <p class="identity-fact" id="line-fact-4"><span class="identity-fact__label">Current Status</span><span class="identity-fact__value">Starting 3rd Year</span></p>
+  <div class="identity-new" id="identity-new">
+    <h1 class="identity-new__name" id="identity-new-name">
+      <span class="identity-new__name-inner" id="identity-new-name-inner" aria-hidden="true">KAAN ACAR</span>
+      <span class="sr-only">KAAN ACAR</span>
+    </h1>
+    <div class="identity-new__meta" id="identity-new-meta">
+      <p class="identity-new__item" id="identity-new-item-1">AGE: 21</p>
+      <p class="identity-new__item" id="identity-new-item-2">DEPARTMENT: Visual Communication Design</p>
+      <p class="identity-new__item" id="identity-new-item-3">STATUS: Starting 3rd Year</p>
     </div>
   </div>
 </section>
 </div>
 
-<!-- Cinematic About Me scene: the longer personal-design-philosophy passage, split out of
-     #identity into its own scene so it gets its own build-hold-exit rather than fighting the name
-     for pacing. Sits between #identity and #skills per the required Identity -> About Me ->
-     Software & Skills -> Availability order. Deliberately redesigned away from the rest of the
-     site's italic-serif "editorial caption" register (Fraunces) into a large-scale Inter Light
-     treatment with no visible heading -- an explicit, scoped exception to the Display family's
+<!-- Cinematic About Me scene: continues directly out of #identity above it (#about-me opens on
+     its own opaque #000 background, so the hand-off is a plain dark-to-dark cut, the same
+     "no bridging needed" pattern already used between #availability and #contact). Pins the same
+     way #identity does. See js/scenes.js for the reveal engine -- the same shared engine as
+     before, just re-timed for a sixth line (the new "About Me" label below) and a wider scroll
+     range for a more deliberate, cinematic build (see that file's own aboutMeScene comment).
+     Redesigned from a left-offset column into a true centered editorial column -- .about-me-copy
+     itself is horizontally centered (not just text-align:center; the text inside it stays
+     left-aligned), a controlled 680px reading measure with generous negative space on both sides,
+     landing in the upper-middle of the viewport rather than dead-center so the whole passage reads
+     as flowing downward as the user scrolls. The tiny mono "About Me" label (.about-me-label,
+     aria-hidden -- the sr-only <h2> below already carries the accessible name) stagger-builds in
+     first, then each sentence -- split into words, each word its own tiny scroll-driven cascade (a
+     vanilla-CSS take on React Bits' Split Text) -- one continuous composition. The lead sentence
+     stays full --paper white; the four that follow (.about-me-line--secondary) settle very
+     slightly dimmer, a restrained hierarchy cue, not a second color. Once fully built, the whole
+     thing holds (reading time), then the entire .about-me-content container fades/lifts out
+     together as one unit before #skills begins the same way. Nothing here is a CSS transition or a
+     timer -- every value is a pure function of this track's own scroll position, so it reverses
+     exactly on scroll-up. Still the large-scale upright (non-italic) Fraunces treatment with no
+     visible heading -- an explicit, scoped exception to the Display family's
      usual "about-page copy" role (see DESIGN.md Typography), because this passage is meant to read
-     as a modern editorial statement, not a quote. `.about-me-rays` is a vanilla-CSS take on React
-     Bits' Side Rays (https://reactbits.dev/backgrounds/side-rays), the same "own reimplementation,
-     not the library" convention already used for Split Text and Shiny Text elsewhere in this file
-     -- a second, distinct ambient exception alongside #identity's blob glow (see DESIGN.md
-     Components), justified the same way: explicit, scoped, one per section, never layered with
-     another glow effect in the same passage. -->
+     as a modern editorial statement, not a quote. `.about-me-glow` replaces the previous
+     `.about-me-rays` (a drifting, continuously-animated conic-gradient/blur pair) with a single
+     static radial-gradient -- very-low-opacity --hero-indigo, no animation, no blur filter, no
+     pseudo-elements -- both lighter to run and a deliberately quieter ambient cue than the effect
+     it replaces; see DESIGN.md Components for why. -->
 <div class="about-me-scroll-track" id="about-me-scroll-track">
 <section id="about-me">
   <h2 class="sr-only">About Me</h2>
-  <div class="about-me-rays" id="about-me-rays" aria-hidden="true"></div>
+  <div class="about-me-glow" id="about-me-glow" aria-hidden="true"></div>
   <div class="about-me-content" id="about-me-content">
     <div class="about-me-copy">
+      <p class="about-me-label" id="line-about-label" aria-hidden="true">About Me</p>
       <p class="about-me-line" id="line-sentence-1">Beyond university, I continuously invest in developing myself across different creative disciplines.</p>
-      <p class="about-me-line" id="line-sentence-2">I believe that becoming a strong visual designer requires more than mastering software—it requires curiosity, experimentation, and consistency.</p>
-      <p class="about-me-line" id="line-sentence-3">Every project is an opportunity to explore new workflows, discover better solutions, and push my creative boundaries.</p>
-      <p class="about-me-line" id="line-sentence-4">Whether I'm building interactive web experiences, motion graphics, branding systems, or 3D visuals, I approach each challenge with the mindset of learning something new.</p>
-      <p class="about-me-line" id="line-sentence-5">My goal is not simply to create visually appealing work, but to design meaningful digital experiences that leave a lasting impression.</p>
+      <p class="about-me-line about-me-line--secondary" id="line-sentence-2">I believe that becoming a strong visual designer requires more than mastering software—it requires curiosity, experimentation, and consistency.</p>
+      <p class="about-me-line about-me-line--secondary" id="line-sentence-3">Every project is an opportunity to explore new workflows, discover better solutions, and push my creative boundaries.</p>
+      <p class="about-me-line about-me-line--secondary" id="line-sentence-4">Whether I'm building interactive web experiences, motion graphics, branding systems, or 3D visuals, I approach each challenge with the mindset of learning something new.</p>
+      <p class="about-me-line about-me-line--secondary" id="line-sentence-5">My goal is not simply to create visually appealing work, but to design meaningful digital experiences that leave a lasting impression.</p>
     </div>
   </div>
 </section>

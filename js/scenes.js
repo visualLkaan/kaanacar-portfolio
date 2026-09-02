@@ -1,13 +1,13 @@
-// ---- Cinematic post-blackout scenes: identity, about me, software & skills, availability ----
-// Continues directly out of #work (both dark, no bridging needed -- see index.html's #identity
+// ---- Cinematic post-blackout scenes: about me, software & skills, availability ----
+// Continues directly out of #work (both dark, no bridging needed -- see index.html's #about-me
 // comment). Architecturally each scene is the same pattern as the hero section above it -- a
 // taller scroll track, a sticky-pinned section inside it -- plus one phase specific to this
 // content: every line stagger-builds in (word by word, a vanilla-CSS take on React Bits' Split Text
 // -- https://reactbits.dev/text-animations/split-text), holds fully assembled long enough to read,
 // then the whole content group fades/lifts out together as one unit before the next scene's own
-// build begins. That's what makes #identity -> #about-me -> #skills -> #availability read as one
-// continuous scene rather than four stacked sections. Nothing here is a CSS transition or a timer
-// -- every value is a pure function of its own track's scroll position, so it reverses exactly on
+// build begins. That's what makes #about-me -> #skills -> #availability read as one continuous
+// scene rather than three stacked sections. Nothing here is a CSS transition or a timer -- every
+// value is a pure function of its own track's scroll position, so it reverses exactly on
 // scroll-up.
 //
 // Reduced motion: this whole module is a no-op (see the early return below). Every track collapses
@@ -46,8 +46,8 @@ export function initScenes() {
 
   // Cascades word spans across local progress p (0-1): word i's own window is
   // [i/n, i/n + 1.6/n], clamped so it never runs past p=1 -- the 1.6x factor overlaps consecutive
-  // words' cascades slightly rather than stepping, same "cascade, don't step" idea as the identity
-  // intro's own LINE_START overlaps in the loader.
+  // words' cascades slightly rather than stepping, same "cascade, don't step" idea as the loader's
+  // own LINE_START overlaps.
   function revealWords(words, p) {
     var n = words.length;
     if (!n) return;
@@ -132,50 +132,25 @@ export function initScenes() {
 
   var scenes = [];
 
-  // ---- Identity: name + 4 facts (5 lines) ----
-  // Split out of a previous single scene that also carried the About Me passage -- that content
-  // now has its own #about-me scene right after this one (see below), so this scene stays short:
-  // a huge name plus a facts row shouldn't need a long scroll to build and hold. range/exitStart
-  // must match .identity-scroll-track's CSS height (see css/style.css). range/base/step/span were
-  // recomputed (not just shrunk) so the name/each fact's own word-cascade keeps the exact same
-  // pixel-length reveal it always had -- only the hold (dead scroll after the build finishes,
-  // before the exit starts) was cut, per feedback that the reveal animations themselves should
-  // stay exactly as slow/elegant as before, just reached with far less waiting around them.
-  var identityScene = buildScene({
-    trackId: 'identity-scroll-track',
-    contentId: 'identity-content',
-    range: 1972,
-    exitStart: 0.688,
-    lineConfigs: stagger([
-      { id: 'line-name', mode: 'words' },
-      { id: 'line-fact-1', mode: 'block' },
-      { id: 'line-fact-2', mode: 'block' },
-      { id: 'line-fact-3', mode: 'block' },
-      { id: 'line-fact-4', mode: 'block' }
-    ], 0.067, 0.1, 0.178)
-  });
-  if (identityScene) scenes.push(identityScene);
-
-  // ---- About Me: 5 sentences, no heading (see index.html/DESIGN.md -- the heading was removed
-  // deliberately, the text itself is now the visual focus) ----
-  // range/exitStart must match .about-me-scroll-track's CSS height (see css/style.css). Recomputed
-  // from the previous 6-line (heading + 5 sentences) config to preserve the exact same absolute
-  // pixel width for each sentence's own word-cascade and for the hold/exit -- removing the heading
-  // line is the only thing that changed here, per "keep the existing scroll animation, do not
-  // change the animation style." Still gets proportionally more hold than the other scenes -- it's
-  // the one passage actually meant to be read.
+  // ---- About Me: tiny "About Me" label + 5 sentences (6 lines) ----
+  // range/exitStart must match .about-me-scroll-track's CSS height (see css/style.css). 2600px
+  // (up from a previous 2151px, 5-line pass) deliberately widens this scene's own build so the
+  // reveal reads as more unhurried/cinematic per an explicit redesign request, not just to fit the
+  // new label line. Still gets proportionally more hold than the other scenes -- it's the one
+  // passage actually meant to be read.
   var aboutMeScene = buildScene({
     trackId: 'about-me-scroll-track',
     contentId: 'about-me-content',
-    range: 2151,
-    exitStart: 0.652,
+    range: 2600,
+    exitStart: 0.74,
     lineConfigs: stagger([
+      { id: 'line-about-label', mode: 'block' },
       { id: 'line-sentence-1', mode: 'words' },
       { id: 'line-sentence-2', mode: 'words' },
       { id: 'line-sentence-3', mode: 'words' },
       { id: 'line-sentence-4', mode: 'words' },
       { id: 'line-sentence-5', mode: 'words' }
-    ], 0.079, 0.071, 0.158)
+    ], 0.06, 0.075, 0.16)
   });
   if (aboutMeScene) scenes.push(aboutMeScene);
 
