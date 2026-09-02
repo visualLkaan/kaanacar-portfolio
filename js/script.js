@@ -1364,7 +1364,14 @@ afterLoader(function () {
       while (idx > 0 && !frames[idx]) idx--;
       drawFrame(idx);
 
-      if (content) {
+      // this is a SEPARATE cosmetic effect from the frame sequence above (a subtle scale/lift/fade
+      // on the hero text as the sequence nears its end) -- not the frame-sequence scrubber itself,
+      // which is exactly why it's the thing to remove on phone/tablet while ensureMobileFrame()/
+      // drawFrame() above stay fully intact. transform+opacity are the cheap GPU-compositor-only
+      // properties (no filter/blur involved), but they were still being written unconditionally on
+      // every single rAF tick on every device, including phone/tablet, with no mobile gate at all.
+      // Desktop is unaffected -- identical scale/translateY/opacity math, same as before this pass.
+      if (content && !HERO_MOBILE_TIER) {
         var scale = 1 - curT * CONTENT_MAX_SCALE;
         var ty = -curT * CONTENT_MAX_TRANSLATE;
         content.style.transform = 'scale(' + scale.toFixed(4) + ') translateY(' + ty.toFixed(2) + 'px)';
