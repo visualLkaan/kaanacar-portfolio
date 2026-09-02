@@ -211,6 +211,23 @@ function renderPdfPageToUrl(project, pageNumber, cssScale) {
   });
 }
 
+// page 1 is what both the carousel's own cover AND (for pdf-backed projects) the color-sync
+// sampler in getProjectMainImageEl() below need -- those two call sites used to each render their
+// own separate copy, at two different scales (1.3 for the cover, 1 for sampling), silently
+// doubling pdf.js's real rasterization work for every pdf-backed project every time. Page 1 is the
+// only page either one ever needs, so it's cached by project here and rendered exactly once, at
+// the cover's own (higher, retina-ready) scale -- the sampler reads pixels from that same result
+// just as well as it would from a smaller render of its own, since it already downsamples via
+// canvas quantization (see extractPaletteFromSource below) regardless of source resolution.
+var pdfPageOneCache = {}; // project.pdf -> Promise<url>, rendered once, shared by cover + sampler
+var PDF_COVER_SCALE = 1.3;
+function getPdfPageOneUrl(project) {
+  if (!pdfPageOneCache[project.pdf]) {
+    pdfPageOneCache[project.pdf] = renderPdfPageToUrl(project, 1, PDF_COVER_SCALE);
+  }
+  return pdfPageOneCache[project.pdf];
+}
+
 // `autoImages` opts a project into a filesystem-free auto-discovery gallery: instead of listing
 // every plate's path by hand (`extraImages`), it probes sequential filenames
 // (`<dir><prefix><n>.<ext>`, n starting at `start`) directly in the browser -- an <img> either
@@ -327,7 +344,7 @@ function loadVideoFrameEl(src) {
 }
 function getProjectMainImageEl(project) {
   if (project.cover) return loadImageEl(project.cover);
-  if (project.pdf) return renderPdfPageToUrl(project, 1, 1).then(loadImageEl);
+  if (project.pdf) return getPdfPageOneUrl(project).then(loadImageEl);
   if (project.videoPreview || project.video) return loadVideoFrameEl(project.videoPreview || project.video);
   return Promise.resolve(null);
 }
@@ -1564,25 +1581,60 @@ afterLoader(function () {
   // ---- state ----
   // perf: a project's cover media (PDF page-1 render via pdf.js, or the videoPreview buffering
   // start) is real network+CPU work -- some of this site's project PDFs run into the tens of MB,
-  // and a couple of the preview clips are comparably large. buildProjectCard() used to kick off
-  // every card's cover fetch synchronously in the same forEach that builds the whole ring, so as
-  // many as a dozen large PDF parses/video buffers could start at once, all competing for
-  // bandwidth with whichever card is actually the one on screen -- the likely cause of "the main
-  // photo sometimes loads late": it's not that project's own fetch that's slow, it's a queue of
-  // simultaneous unrelated ones starving it. This tiny serial chain instead runs one cover fetch
-  // at a time, in card-build order -- since buildRing() below processes PROJECTS in order, the
-  // initially front-facing card's own cover is always queued first and so always starts first and
-  // uncontended, with every other (currently off-screen) card's cover following one at a time
-  // rather than all at once. Nothing about what eventually renders changes -- the same tone-
-  // gradient letterbox already shown while a cover is pending (see the pdf branch below) just
-  // stays up a little longer for cards further back in the queue, exactly as it already did while
-  // any single cover was loading.
-  var deferredCoverChain = Promise.resolve();
-  function queueDeferredCover(fn) {
-    deferredCoverChain = deferredCoverChain.then(fn).catch(function () {});
+  // and a couple of the preview clips are comparably large. buildProjectCard() below no longer
+  // starts any of that work itself -- it only builds the DOM and hands back a `startCover()`
+  // closure; WHEN that closure actually runs is decided entirely here, by two cooperating pieces:
+  //
+  //   1) ensureNeighborhoodLoaded(idx) -- called once for index 0 right after the ring is built,
+  //      and again every time syncActiveIndex() (further down) detects the active card has
+  //      changed, whether that's from a drag, wheel, keys, or the idle autoplay drift. It starts
+  //      exactly the active card plus its two immediate ring neighbors -- the only cards that can
+  //      plausibly be on screen or about to be -- and is a no-op for anything already started.
+  //      A first pass here only ever primed index 0 once, at build time; that missed the very
+  //      common case where autoplay (a flat 5s idle timer, see IDLE_DELAY below) or a drag has
+  //      already moved the front card on by the time a visitor actually scrolls down to Work,
+  //      which a ~1700px hero scroll track alone is often enough time for -- leaving whatever
+  //      card ended up centered still unprimed.
+  //   2) queueBackfillCover(record) -- everything NOT in that immediate neighborhood. A first pass
+  //      here queued every other card's cover strictly in PROJECTS array order, one at a time --
+  //      but that meant a visitor who rotated two or three cards in either direction could land on
+  //      one still stuck behind whichever huge PDF/video happened to sit earlier in that fixed
+  //      order (this site's largest project PDF alone is 25MB). The backfill queue below still
+  //      runs one cover at a time (never competing bandwidth with itself, let alone the active
+  //      card), but each step now waits for its own idle slice via scheduleIdle() -- both to leave
+  //      the active/neighborhood loads above uncontested, and because ensureNeighborhoodLoaded()
+  //      can (and regularly does) reach a card first as the visitor rotates past it, at which point
+  //      the backfill's own turn for that same card is just a no-op skip.
+  //
+  // Together: the visible card is always the very first thing requested, its neighbors follow
+  // immediately behind it, rotating anywhere in the ring keeps whatever's newly visible primed
+  // the same way, and every remaining card still eventually loads in the background without ever
+  // competing with what the visitor is actually looking at.
+  function queueBackfillCover(record) {
+    backfillChain = backfillChain.then(function () {
+      return new Promise(function (resolve) {
+        scheduleIdle(function () { ensureCoverStarted(record).then(resolve, resolve); });
+      });
+    });
+  }
+  var backfillChain = Promise.resolve();
+
+  function ensureCoverStarted(record) {
+    if (record.coverStarted) return Promise.resolve();
+    record.coverStarted = true;
+    return (record.startCover ? record.startCover() : Promise.resolve()) || Promise.resolve();
+  }
+  function ensureNeighborhoodLoaded(centerIdx) {
+    var n = cards.length;
+    if (!n) return;
+    ensureCoverStarted(cards[centerIdx]);
+    if (n > 1) {
+      ensureCoverStarted(cards[((centerIdx - 1) % n + n) % n]);
+      ensureCoverStarted(cards[(centerIdx + 1) % n]);
+    }
   }
 
-  var cards = [];                 // [{ el, inner, angle, index, item }]
+  var cards = [];                 // [{ el, inner, angle, index, item, startCover, coverStarted }]
   var angleStep = 0;
   var radius = 0;
   var currentAngle = 0;           // degrees, unbounded
@@ -1646,21 +1698,27 @@ afterLoader(function () {
     inner.className = 'carousel-card__inner';
     applyTone(inner, i);
 
-    // the card built at i===0 is the one facing front the instant the ring exists (see buildRing()
-    // -- angle = i * angleStep, and the ring's own counter-rotation starts at 0deg) -- i.e. the
-    // only cover actually visible without the visitor doing anything. That one gets browser-level
-    // priority; every other card's cover is either native-lazy (plain <img>) or routed through
-    // queueDeferredCover above (pdf/video) so it never competes with the visible one.
-    var isInitial = i === 0;
+    // builds the DOM only -- does NOT start any network/decode work itself. `startCover`, handed
+    // back to the caller, is what actually kicks off the fetch/render/buffer; buildRing() decides
+    // if/when to call it (see ensureNeighborhoodLoaded()/queueBackfillCover() above), so this
+    // function stays agnostic to whether it's building the visible card or a distant one.
+    var startCover = null;
 
     if (project.cover) {
       var img = document.createElement('img');
       img.className = 'carousel-card__cover';
-      img.src = project.cover;
       img.alt = project.title + ' — cover';
       img.draggable = false;
-      if (isInitial) { img.fetchPriority = 'high'; } else { img.loading = 'lazy'; }
+      img.decoding = 'async'; // never a reason to block the main thread on a raster decode
+      if (i === 0) img.fetchPriority = 'high'; // the one card guaranteed visible with zero interaction
       inner.appendChild(img);
+      startCover = function () {
+        return new Promise(function (resolve) {
+          img.addEventListener('load', resolve, { once: true });
+          img.addEventListener('error', resolve, { once: true });
+          img.src = project.cover;
+        });
+      };
     } else if (project.pdf) {
       // page 1 of the PDF, rendered live -- the tone gradient already applied above shows
       // through as a letterbox exactly like a real `cover` image (object-fit:contain) until
@@ -1669,11 +1727,11 @@ afterLoader(function () {
       pdfCoverImg.className = 'carousel-card__cover';
       pdfCoverImg.alt = project.title + ' — cover';
       pdfCoverImg.draggable = false;
+      pdfCoverImg.decoding = 'async';
       inner.appendChild(pdfCoverImg);
-      var renderCover = function () {
-        return renderPdfPageToUrl(project, 1, 1.3).then(function (url) { pdfCoverImg.src = url; });
+      startCover = function () {
+        return getPdfPageOneUrl(project).then(function (url) { pdfCoverImg.src = url; });
       };
-      if (isInitial) { renderCover(); } else { queueDeferredCover(renderCover); }
     } else if (project.videoPreview) {
       // paused on its first frame by default -- no `autoplay`/`loop`-while-idle here, playback
       // is only ever started from the card's mouseenter handler below, while this card is the
@@ -1685,21 +1743,16 @@ afterLoader(function () {
       previewVid.playsInline = true;
       previewVid.preload = 'auto';
       inner.appendChild(previewVid);
-      // `src` is what actually starts the fetch/buffer for a preload:'auto' video -- assigning it
-      // immediately only for the visible card, and through the same serial queue as PDF covers
-      // for every other one, is what keeps a dozen-MB preview clip from starting to buffer in the
-      // background while a different card's cover is what the visitor is actually waiting on.
-      if (isInitial) {
-        previewVid.src = project.videoPreview;
-      } else {
-        queueDeferredCover(function () {
-          return new Promise(function (resolve) {
-            previewVid.addEventListener('loadeddata', resolve, { once: true });
-            previewVid.addEventListener('error', resolve, { once: true });
-            previewVid.src = project.videoPreview;
-          });
+      // `src` is what actually starts the fetch/buffer for a preload:'auto' video -- left unset
+      // until startCover() runs, so an off-screen video project's multi-megabyte clip never begins
+      // downloading in the background on its own.
+      startCover = function () {
+        return new Promise(function (resolve) {
+          previewVid.addEventListener('loadeddata', resolve, { once: true });
+          previewVid.addEventListener('error', resolve, { once: true });
+          previewVid.src = project.videoPreview;
         });
-      }
+      };
     }
 
     // `videoPreview` projects communicate "this is a video" through the hover-playing preview
@@ -1713,7 +1766,7 @@ afterLoader(function () {
     }
 
     card.appendChild(inner);
-    return card;
+    return { card: card, startCover: startCover };
   }
 
 
@@ -1866,6 +1919,7 @@ afterLoader(function () {
     displayedIndex = idx;
     updateWash(idx);
     updateInfo(idx);
+    ensureNeighborhoodLoaded(idx); // keep whatever just became visible (and its neighbors) primed
   }
 
   // ---- build the ring's cards -- called once; this ring only ever shows PROJECTS ----
@@ -1879,14 +1933,18 @@ afterLoader(function () {
     radius = ringRadius(size.width, count);
 
     PROJECTS.forEach(function (project, i) {
-      var el = buildProjectCard(project, i);
+      var built = buildProjectCard(project, i);
+      var el = built.card;
       el.style.width = size.width + 'px';
       el.style.height = size.height + 'px';
       var angle = i * angleStep;
       el.style.transform = 'translate(-50%,-50%) rotateY(' + angle + 'deg) translateZ(' + radius + 'px)';
 
       var inner = el.querySelector('.carousel-card__inner');
-      var record = { el: el, inner: inner, angle: angle, index: i, item: project };
+      var record = {
+        el: el, inner: inner, angle: angle, index: i, item: project,
+        startCover: built.startCover, coverStarted: false
+      };
       cards.push(record);
 
       el.addEventListener('mouseenter', function () {
@@ -1908,6 +1966,15 @@ afterLoader(function () {
 
       ring.appendChild(el);
     });
+
+    // low-priority background fill for every card outside the initial active neighborhood --
+    // render() below (via syncActiveIndex() -> ensureNeighborhoodLoaded(0)) already primes index 0
+    // and its two neighbors immediately; this just makes sure the remaining cards don't stay on
+    // their gradient placeholder forever if the visitor never rotates near them. Each of these is a
+    // no-op by the time it's actually its turn if ensureNeighborhoodLoaded() already reached that
+    // card first via rotation -- see queueBackfillCover()'s own comment above for why this is safe
+    // to queue for everyone unconditionally rather than trying to pre-exclude the neighborhood.
+    cards.forEach(function (record) { queueBackfillCover(record); });
 
     render();
   }
