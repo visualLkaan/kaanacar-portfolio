@@ -19,9 +19,15 @@ var frameBottom = document.getElementById('frame-bottom');
 // mounting Prism, building the carousel, etc. never collapses into a single dropped frame either.
 var loaderDone = false;
 var loaderDoneCallbacks = [];
-function afterLoader(fn) {
+// `{ priority: true }` puts fn at the front of the queue instead of the back -- used by exactly
+// one caller (#work-carousel, see below): #work is the very next section after the hero, and its
+// project cover images are what visitors actually wait on, so it deserves first crack at idle
+// time over strictly-lower-the-fold mounts (identity/about-me/skills/flow-menu/fast-travel), not
+// last (its previous position, dead last in registration order for no functional reason).
+function afterLoader(fn, opts) {
   if (loaderDone) { fn(); return; }
-  loaderDoneCallbacks.push(fn);
+  if (opts && opts.priority) loaderDoneCallbacks.unshift(fn);
+  else loaderDoneCallbacks.push(fn);
 }
 function scheduleIdle(fn) {
   if (window.requestIdleCallback) { requestIdleCallback(fn, { timeout: 500 }); }
@@ -1556,6 +1562,26 @@ afterLoader(function () {
   root.appendChild(hint);
 
   // ---- state ----
+  // perf: a project's cover media (PDF page-1 render via pdf.js, or the videoPreview buffering
+  // start) is real network+CPU work -- some of this site's project PDFs run into the tens of MB,
+  // and a couple of the preview clips are comparably large. buildProjectCard() used to kick off
+  // every card's cover fetch synchronously in the same forEach that builds the whole ring, so as
+  // many as a dozen large PDF parses/video buffers could start at once, all competing for
+  // bandwidth with whichever card is actually the one on screen -- the likely cause of "the main
+  // photo sometimes loads late": it's not that project's own fetch that's slow, it's a queue of
+  // simultaneous unrelated ones starving it. This tiny serial chain instead runs one cover fetch
+  // at a time, in card-build order -- since buildRing() below processes PROJECTS in order, the
+  // initially front-facing card's own cover is always queued first and so always starts first and
+  // uncontended, with every other (currently off-screen) card's cover following one at a time
+  // rather than all at once. Nothing about what eventually renders changes -- the same tone-
+  // gradient letterbox already shown while a cover is pending (see the pdf branch below) just
+  // stays up a little longer for cards further back in the queue, exactly as it already did while
+  // any single cover was loading.
+  var deferredCoverChain = Promise.resolve();
+  function queueDeferredCover(fn) {
+    deferredCoverChain = deferredCoverChain.then(fn).catch(function () {});
+  }
+
   var cards = [];                 // [{ el, inner, angle, index, item }]
   var angleStep = 0;
   var radius = 0;
@@ -1620,13 +1646,20 @@ afterLoader(function () {
     inner.className = 'carousel-card__inner';
     applyTone(inner, i);
 
+    // the card built at i===0 is the one facing front the instant the ring exists (see buildRing()
+    // -- angle = i * angleStep, and the ring's own counter-rotation starts at 0deg) -- i.e. the
+    // only cover actually visible without the visitor doing anything. That one gets browser-level
+    // priority; every other card's cover is either native-lazy (plain <img>) or routed through
+    // queueDeferredCover above (pdf/video) so it never competes with the visible one.
+    var isInitial = i === 0;
+
     if (project.cover) {
       var img = document.createElement('img');
       img.className = 'carousel-card__cover';
       img.src = project.cover;
       img.alt = project.title + ' — cover';
-      img.loading = 'lazy';
       img.draggable = false;
+      if (isInitial) { img.fetchPriority = 'high'; } else { img.loading = 'lazy'; }
       inner.appendChild(img);
     } else if (project.pdf) {
       // page 1 of the PDF, rendered live -- the tone gradient already applied above shows
@@ -1637,19 +1670,36 @@ afterLoader(function () {
       pdfCoverImg.alt = project.title + ' — cover';
       pdfCoverImg.draggable = false;
       inner.appendChild(pdfCoverImg);
-      renderPdfPageToUrl(project, 1, 1.3).then(function (url) { pdfCoverImg.src = url; });
+      var renderCover = function () {
+        return renderPdfPageToUrl(project, 1, 1.3).then(function (url) { pdfCoverImg.src = url; });
+      };
+      if (isInitial) { renderCover(); } else { queueDeferredCover(renderCover); }
     } else if (project.videoPreview) {
       // paused on its first frame by default -- no `autoplay`/`loop`-while-idle here, playback
       // is only ever started from the card's mouseenter handler below, while this card is the
       // active/centered one; loop only takes effect once .play() actually runs on hover
       var previewVid = document.createElement('video');
       previewVid.className = 'carousel-card__preview';
-      previewVid.src = project.videoPreview;
       previewVid.muted = true;
       previewVid.loop = true;
       previewVid.playsInline = true;
       previewVid.preload = 'auto';
       inner.appendChild(previewVid);
+      // `src` is what actually starts the fetch/buffer for a preload:'auto' video -- assigning it
+      // immediately only for the visible card, and through the same serial queue as PDF covers
+      // for every other one, is what keeps a dozen-MB preview clip from starting to buffer in the
+      // background while a different card's cover is what the visitor is actually waiting on.
+      if (isInitial) {
+        previewVid.src = project.videoPreview;
+      } else {
+        queueDeferredCover(function () {
+          return new Promise(function (resolve) {
+            previewVid.addEventListener('loadeddata', resolve, { once: true });
+            previewVid.addEventListener('error', resolve, { once: true });
+            previewVid.src = project.videoPreview;
+          });
+        });
+      }
     }
 
     // `videoPreview` projects communicate "this is a video" through the hover-playing preview
@@ -2151,4 +2201,4 @@ afterLoader(function () {
   }
 
   buildRing();
-});
+}, { priority: true });
