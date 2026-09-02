@@ -412,6 +412,12 @@
 
 <!-- self-hosted, no CDN -- used by the loader's crowd-canvas only, same vendoring convention as assets/vendor/pdfjs -->
 <script src="assets/vendor/gsap/gsap.min.js"></script>
+<!-- PROJECTS data + the pdf.js/video/palette loaders (mobile/tablet-gated), then the shared
+     project-detail renderer -- both loaded before js/script.js since it consumes them; also
+     shared, unchanged, by project/<id>/index.html via js/project-page.js. See js/project-data.js's
+     own header comment. -->
+<script src="js/project-data.js"></script>
+<script src="js/project-render.js"></script>
 <script src="js/script.js"></script>
 </body>
 </html>

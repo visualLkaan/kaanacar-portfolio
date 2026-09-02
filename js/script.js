@@ -82,389 +82,12 @@ function markPrismReady() {
 }
 
 // ---- Work: fully data-driven project model ----
-// Add a project by editing PROJECTS only. Cards, the layered exhibition gallery and the
-// video page are all generated from this array -- no HTML or CSS edits are ever required.
-// image projects: { type:'image', images: <count> }
-// video projects:  { type:'video', supporting: <count of extra images/videos below the video> }
-var PROJECTS = [
-  // `videoPreview` opts a video project into a hover-to-play carousel preview (a muted, looping
-  // <video> in place of the static cover) instead of the default tone-gradient-plus-play-icon
-  // card every other video project uses -- same single file for both `videoPreview` and `video`,
-  // same convention as fight-club-titles/fight-club-soap below.
-  { id: 'who-i-am',     title: 'WHO I AM',                category: 'Blender / 3D Motion', year: '2026', size: 'md', type: 'video',
-    description: 'A cinematic Blender identity piece -- the same footage that once opened this site’s own about section, now shown here as a standalone motion project.',
-    videoPreview: 'assets/projects/who-i-am/who-i-am.mp4',
-    video: 'assets/projects/who-i-am/who-i-am.mp4' },
-  { id: 'linka',        title: 'LinkA — E-Dating App',    category: 'UI / UX',            year: '2026', size: 'lg', type: 'image',
-    cover: 'assets/projects/linka/cover.jpg',
-    images: [
-      'assets/projects/linka/plate-01.jpg',
-      'assets/projects/linka/plate-02.jpg',
-      'assets/projects/linka/plate-03.jpg',
-      'assets/projects/linka/plate-04.jpg',
-      'assets/projects/linka/plate-05.jpg',
-      'assets/projects/linka/plate-06.jpg'
-    ] },
-  // `pdf` projects have no `cover`/`images` -- the cover (page 1) and every following page
-  // (the gallery, in order) are rendered live from the PDF itself in the visitor's browser
-  // (see loadPdfjs()/renderPdfPageToUrl() below), so adding pages to the file is the only step
-  // ever needed; nothing here or in the gallery-building code has to change. `extraImages` are
-  // static plates appended to the gallery after the PDF pages, in array order.
-  { id: 'white-noise',  title: 'WHITE NOISE',             category: 'Book Cover',        year: '2026', size: 'md', type: 'image',
-    pdf: 'assets/projects/white-noise/white-noise.pdf',
-    extraImages: [
-      'assets/projects/white-noise/bookcover-mockup.jpg'
-    ] },
-  { id: 'kanye-west',   title: 'KANYE WEST',              category: 'Editorial Design',  year: '2026', size: 'md', type: 'image',
-    pdf: 'assets/projects/kanye-west/kanye-west.pdf' },
-  { id: 'breaking-the-grid', title: 'BREAKING THE GRID',  category: 'Swiss Style',       year: '2026', size: 'md', type: 'image',
-    pdf: 'assets/projects/breaking-the-grid/breaking-the-grid.pdf' },
-  { id: 'didot-specimen', title: 'DIDOT TYPE SPECIMEN',  category: 'Typography',        year: '2026', size: 'md', type: 'image',
-    pdf: 'assets/projects/didot-specimen/didot-specimen.pdf',
-    pdfPagesInGallery: false, // cover still renders from PDF page 1 as normal; the PDF's other
-    // pages (a case-study deck, not gallery plates) are excluded -- gallery is extraImages only
-    extraImages: [
-      'assets/projects/didot-specimen/didot-type-specimen.jpg'
-    ] },
-  // `videoPreview` opts a video project into a hover-to-play carousel preview (a muted, looping
-  // <video> in place of the static cover -- see buildProjectCard()/the card hover handlers below)
-  // instead of the default tone-gradient-plus-play-icon card every other video project uses.
-  { id: 'reach',         title: 'REACH',                   category: 'Animation / Music Video', year: '2026', size: 'md', type: 'video',
-    videoPreview: 'assets/projects/reach/reach-preview.mp4',
-    video: 'assets/projects/reach/reach-full.mp4' },
-  { id: 'fight-club-titles', title: 'FIGHT CLUB — Title Sequence', category: 'Motion / Title Design', year: '2026', size: 'md', type: 'video',
-    // same single file for both -- `videoPreview` and `video` don't have to differ, the preview
-    // mechanism only ever plays/loops/resets it silently in the card, independent of the full,
-    // controls-enabled playback `buildVideo()` renders once the project is actually opened
-    videoPreview: 'assets/projects/fight-club-titles/fight-club-titles.mp4',
-    video: 'assets/projects/fight-club-titles/fight-club-titles.mp4' },
-  { id: 'unknown-place', title: 'UNKNOWN PLACE',   category: 'Book Cover',        year: '2026', size: 'md', type: 'image',
-    pdf: 'assets/projects/unknown-place/unknown-place.pdf', // cover only (1 page) -- no gallery
-    pdfPagesInGallery: false, // plates of its own; the gallery comes entirely from autoImages below
-    // `photo1.jpeg` is the first gallery plate; `autoImages` probes `photo2`, `photo3`, ... in the
-    // browser (see loadAutoImageSequence() above) so dropping more `photoN` files into this
-    // project's folder later adds them to the gallery in filename order with zero code changes
-    autoImages: { dir: 'assets/projects/unknown-place/', prefix: 'photo', start: 1,
-      extensions: ['jpeg', 'jpg', 'png', 'webp'] } },
-  { id: 'fight-club-soap', title: 'Fight Club Soap', category: '3D Product Visualization', year: '2026', size: 'md', type: 'video',
-    description: 'A cinematic 3D recreation of the iconic Fight Club soap, modeled, textured and rendered in Blender with a focus on realistic materials, lighting and presentation.',
-    videoPreview: 'assets/projects/fight-club-soap/fight-club-soap.mp4',
-    video: 'assets/projects/fight-club-soap/fight-club-soap.mp4' },
-  { id: 'scarface', title: 'SCARFACE', category: 'Alternative Film Poster', year: '2026', size: 'md', type: 'image',
-    pdf: 'assets/projects/scarface/main-photo.pdf', // cover only (1 page) -- no gallery pages of its own
-    pdfPagesInGallery: false, // the gallery is the one real artwork plate below, not this cover
-    extraImages: [
-      'assets/projects/scarface/scarface-artwork.jpg'
-    ] },
-  { id: 'messi', title: 'MESSI', category: 'Illustration', year: '2026', size: 'md', type: 'image',
-    pdf: 'assets/projects/messi/main-photo.pdf', // cover only (1 page) -- no gallery pages of its own
-    pdfPagesInGallery: false, // the gallery is the one real artwork plate below, not this cover
-    extraImages: [
-      'assets/projects/messi/messi-artwork.jpg'
-    ] },
-  // unlike the pdf-only projects above, MOLA has its own dedicated cover photo -- so unlike
-  // those, page 1 of its pdf is real gallery content rather than a redundant cover render, and
-  // is included in the gallery accordingly (see the `project.cover` check in
-  // loadPdfGalleryItems() below)
-  { id: 'mola', title: 'MOLA', category: 'Brand Identity', year: '2026', size: 'md', type: 'image',
-    cover: 'assets/projects/mola/main-photo.jpeg',
-    pdf: 'assets/projects/mola/mola-brand-identity.pdf' }
-];
-
-// deterministic gradient palette -- every tone used anywhere (cards, gallery plates, supporting
-// media) comes from this cycle by index, so adding projects/images never needs new CSS
-var TONE_PALETTE = [
-  ['#EDEAE3', '#CBD3E8'], ['#EFEAE6', '#E3CFC3'], ['#E7EAE3', '#C9D6C1'], ['#EEE7E3', '#DCC7B0'],
-  ['#E7E7EE', '#C6C6DE'], ['#ECEAE5', '#D9CFC2'], ['#E9E4EA', '#CBC2DE'], ['#E6EBE9', '#BFD8D0'],
-  ['#EDE6E0', '#E0C9B8'], ['#E4E7EE', '#C3CEE0']
-];
-function applyTone(el, i) {
-  var t = TONE_PALETTE[((i % TONE_PALETTE.length) + TONE_PALETTE.length) % TONE_PALETTE.length];
-  el.style.setProperty('--tone-a', t[0]);
-  el.style.setProperty('--tone-b', t[1]);
-}
-
-// fallback-only wash palette for the Work carousel's background: the real palette for every
-// project is now extracted live from its own cover/PDF-page/video-frame (see
-// extractPaletteFromSource()/getProjectPalette() above) and fed into updateWash() below. This
-// cyclic array only ever gets used if that extraction genuinely fails for a given project (e.g.
-// an undecodable source) -- degradation, not the primary mechanism -- so it's kept saturated and
-// visually distinct by index the same way it always was.
-var WASH_PALETTE = [
-  ['#3B4FD6', '#7C93FF'], ['#C4522E', '#FF7A4D'], ['#2E7D4F', '#4CAF7D'], ['#B8842A', '#FFC24C'],
-  ['#5B4FE0', '#9B90F2'], ['#8A5A34', '#D9925C'], ['#7C3FD6', '#C77DFF'], ['#1F8A7A', '#4FD6C0'],
-  ['#D6553A', '#FF9470'], ['#2E6FD6', '#6FA8FF']
-];
-
-// ---- PDF-backed projects: page 1 is rendered as the carousel cover, every page after that as
-// the gallery, live in the browser via pdf.js (self-hosted in assets/vendor/pdfjs, no CDN).
-// This is the actual mechanism behind the "add pages to the PDF and they just appear" project
-// convention -- there is no export/build step and no per-page file naming to keep in sync. ----
-// captured synchronously at parse time (this is a classic, non-module script, so
-// import.meta is unavailable) -- gives an absolute base for the vendor paths below
-// regardless of what page/path this script is served from
-var scriptUrl = document.currentScript ? document.currentScript.src : '';
-var vendorBase = scriptUrl.replace(/[^/]*$/, '../assets/vendor/pdfjs/');
-
-var pdfjsModulePromise = null;
-function loadPdfjs() {
-  if (!pdfjsModulePromise) {
-    pdfjsModulePromise = import(vendorBase + 'pdf.min.mjs').then(function (mod) {
-      mod.GlobalWorkerOptions.workerSrc = vendorBase + 'pdf.worker.min.mjs';
-      return mod;
-    });
-  }
-  return pdfjsModulePromise;
-}
-
-var pdfDocumentCache = {}; // project.pdf path -> Promise<PDFDocumentProxy>, parsed only once
-function getPdfDocument(project) {
-  if (!pdfDocumentCache[project.pdf]) {
-    pdfDocumentCache[project.pdf] = loadPdfjs().then(function (pdfjsLib) {
-      return pdfjsLib.getDocument({ url: project.pdf }).promise;
-    });
-  }
-  return pdfDocumentCache[project.pdf];
-}
-
-// renders one page to an <img>-ready URL at a given CSS-pixel scale (device-pixel-ratio aware,
-// so covers/plates stay crisp on retina displays the same way a real exported image would)
-function renderPdfPageToUrl(project, pageNumber, cssScale) {
-  return getPdfDocument(project).then(function (doc) {
-    return doc.getPage(pageNumber);
-  }).then(function (page) {
-    var viewport = page.getViewport({ scale: cssScale * (window.devicePixelRatio || 1) });
-    var canvas = document.createElement('canvas');
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    var ctx = canvas.getContext('2d');
-    return page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function () {
-      return new Promise(function (resolve) {
-        canvas.toBlob(function (blob) { resolve(URL.createObjectURL(blob)); }, 'image/png');
-      });
-    });
-  });
-}
-
-// page 1 is what both the carousel's own cover AND (for pdf-backed projects) the color-sync
-// sampler in getProjectMainImageEl() below need -- those two call sites used to each render their
-// own separate copy, at two different scales (1.3 for the cover, 1 for sampling), silently
-// doubling pdf.js's real rasterization work for every pdf-backed project every time. Page 1 is the
-// only page either one ever needs, so it's cached by project here and rendered exactly once, at
-// the cover's own (higher, retina-ready) scale -- the sampler reads pixels from that same result
-// just as well as it would from a smaller render of its own, since it already downsamples via
-// canvas quantization (see extractPaletteFromSource below) regardless of source resolution.
-var pdfPageOneCache = {}; // project.pdf -> Promise<url>, rendered once, shared by cover + sampler
-var PDF_COVER_SCALE = 1.3;
-function getPdfPageOneUrl(project) {
-  if (!pdfPageOneCache[project.pdf]) {
-    pdfPageOneCache[project.pdf] = renderPdfPageToUrl(project, 1, PDF_COVER_SCALE);
-  }
-  return pdfPageOneCache[project.pdf];
-}
-
-// `autoImages` opts a project into a filesystem-free auto-discovery gallery: instead of listing
-// every plate's path by hand (`extraImages`), it probes sequential filenames
-// (`<dir><prefix><n>.<ext>`, n starting at `start`) directly in the browser -- an <img> either
-// loads or 404s, no server directory listing needed on this static, buildless site. Stops at the
-// first index that matches none of `extensions`, so dropping `photo2.jpg`, `photo3.jpg`, etc.
-// into the folder later makes them appear in the gallery in filename order with zero code changes.
-function probeImageExists(url) {
-  return new Promise(function (resolve) {
-    var img = new Image();
-    img.onload = function () { resolve(true); };
-    img.onerror = function () { resolve(false); };
-    img.src = url;
-  });
-}
-function loadAutoImageSequence(seq) {
-  var exts = seq.extensions || ['jpg', 'jpeg', 'png', 'webp'];
-  function findAt(n) {
-    return exts.reduce(function (chain, ext) {
-      return chain.then(function (found) {
-        if (found) return found;
-        var url = seq.dir + seq.prefix + n + '.' + ext;
-        return probeImageExists(url).then(function (ok) { return ok ? url : null; });
-      });
-    }, Promise.resolve(null));
-  }
-  function loop(n, acc) {
-    return findAt(n).then(function (url) {
-      if (!url) return acc;
-      acc.push(url);
-      return loop(n + 1, acc);
-    });
-  }
-  return loop(seq.start || 1, []);
-}
-
-// resolves to this project's gallery items (every page after the cover, in order) -- however
-// many pages exist right now; the gallery-building code itself never needs to know the count.
-// `pdfPagesInGallery: false` opts a project out of this (cover still renders from page 1 as
-// normal) so its gallery is made up of `extraImages`/`autoImages` alone -- used by didot-specimen,
-// whose source PDF is a full case-study deck rather than a page-per-gallery-plate spread.
-function loadPdfGalleryItems(project) {
-  return getPdfDocument(project).then(function (doc) {
-    var pageNumbers = [];
-    if (project.pdfPagesInGallery !== false) {
-      // page 1 is only skipped here because it's already shown elsewhere as the live-rendered
-      // cover (see getProjectMainImageEl()/buildProjectCard() above) -- a project with its own
-      // separate `cover` image never renders page 1 anywhere else, so it belongs in the gallery
-      // too instead of being silently dropped
-      var startPage = project.cover ? 1 : 2;
-      for (var p = startPage; p <= doc.numPages; p++) pageNumbers.push(p);
-    }
-    return Promise.all(pageNumbers.map(function (p) {
-      return renderPdfPageToUrl(project, p, 2).then(function (url) {
-        return { kind: 'image', src: url };
-      });
-    }));
-  }).then(function (items) {
-    (project.extraImages || []).forEach(function (src) { items.push({ kind: 'image', src: src }); });
-    if (!project.autoImages) return items;
-    return loadAutoImageSequence(project.autoImages).then(function (urls) {
-      urls.forEach(function (src) { items.push({ kind: 'image', src: src }); });
-      return items;
-    });
-  });
-}
-
-// ---- gallery items for a project's page, normalized across the placeholder-count / real-array /
-// video conventions -- see README ----
-function screenItemsFor(project) {
-  var list = [];
-  if (project.type === 'video') {
-    list.push({ kind: 'video', src: project.video || '' });
-    for (var i = 0; i < (project.supporting || 0); i++) list.push({ kind: 'placeholder', tone: i + 5 });
-  } else if (Array.isArray(project.images)) {
-    project.images.forEach(function (src) { list.push({ kind: 'image', src: src }); });
-  } else {
-    for (var j = 0; j < (project.images || 0); j++) list.push({ kind: 'placeholder', tone: j + 3 });
-  }
-  return list;
-}
-
-// ---- Project palette extraction: the single source of truth for "what color is this project."
-// Analyzes each project's own main image (cover / rendered PDF page 1 / video preview's first
-// frame) live in the browser -- a downscaled canvas + quantized-histogram dominant-color sample,
-// picking the two most distinct prominent clusters (or, for a near-monochrome source, deriving a
-// second tone from the first via an HSL lightness shift, the same "darker/lighter pair" shape
-// WASH_PALETTE below already uses). Nothing here is hand-picked per project; nothing samples an
-// image twice (results are cached per project id, since a cover never changes after first look).
-// Drives the Work background wash (updateWash(), further down) -- the hero's own background
-// (js/prism-bg.js) has a fixed color identity and does not consume this palette. ----
-function loadImageEl(src) {
-  return new Promise(function (resolve, reject) {
-    var img = new Image();
-    img.onload = function () { resolve(img); };
-    img.onerror = reject;
-    img.src = src;
-  });
-}
-function loadVideoFrameEl(src) {
-  return new Promise(function (resolve, reject) {
-    var vid = document.createElement('video');
-    vid.muted = true;
-    vid.playsInline = true;
-    vid.preload = 'auto';
-    vid.addEventListener('error', reject, { once: true });
-    vid.addEventListener('loadeddata', function onLoaded() {
-      vid.removeEventListener('loadeddata', onLoaded);
-      vid.addEventListener('seeked', function () { resolve(vid); }, { once: true });
-      // a hair past frame 0 -- some encodes leave the literal first frame black
-      vid.currentTime = Math.min(0.2, (vid.duration || 1) / 2);
-    });
-    vid.src = src;
-  });
-}
-function getProjectMainImageEl(project) {
-  if (project.cover) return loadImageEl(project.cover);
-  if (project.pdf) return getPdfPageOneUrl(project).then(loadImageEl);
-  if (project.videoPreview || project.video) return loadVideoFrameEl(project.videoPreview || project.video);
-  return Promise.resolve(null);
-}
-
-function rgbDistance(a, b) {
-  var dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2];
-  return Math.sqrt(dr * dr + dg * dg + db * db);
-}
-function rgbToHex(rgb) {
-  return '#' + rgb.map(function (v) {
-    var n = Math.max(0, Math.min(255, Math.round(v))).toString(16);
-    return n.length < 2 ? '0' + n : n;
-  }).join('');
-}
-// derives a second tone from the same hue when a source is too close to monochrome for a real
-// second cluster to exist -- an HSL lightness shift, computed rather than authored
-function deriveToneVariant(rgb) {
-  var r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255;
-  var max = Math.max(r, g, b), min = Math.min(r, g, b);
-  var l = (max + min) / 2, d = max - min, h = 0, s = 0;
-  if (d !== 0) {
-    s = d / (1 - Math.abs(2 * l - 1));
-    if (max === r) h = ((g - b) / d) % 6;
-    else if (max === g) h = (b - r) / d + 2;
-    else h = (r - g) / d + 4;
-    h *= 60;
-    if (h < 0) h += 360;
-  }
-  var l2 = l > 0.5 ? l - 0.3 : l + 0.3;
-  l2 = Math.max(0.08, Math.min(0.92, l2));
-  var cc = (1 - Math.abs(2 * l2 - 1)) * s;
-  var x = cc * (1 - Math.abs((h / 60) % 2 - 1));
-  var m = l2 - cc / 2;
-  var seg = Math.floor(h / 60) % 6;
-  var rp = [cc, x, 0, 0, x, cc][seg], gp = [x, cc, cc, x, 0, 0][seg], bp = [0, 0, x, cc, cc, x][seg];
-  return [(rp + m) * 255, (gp + m) * 255, (bp + m) * 255];
-}
-function extractPaletteFromSource(source) {
-  var W = 48, H = 48;
-  var c = document.createElement('canvas');
-  c.width = W; c.height = H;
-  var ctx = c.getContext('2d', { willReadFrequently: true });
-  var data;
-  try {
-    ctx.drawImage(source, 0, 0, W, H);
-    data = ctx.getImageData(0, 0, W, H).data;
-  } catch (e) {
-    return null; // undecodable/tainted source -- caller falls back to WASH_PALETTE
-  }
-  var LEVELS = 6;
-  var buckets = {};
-  for (var i = 0; i < data.length; i += 4) {
-    if (data[i + 3] < 128) continue; // skip transparent
-    var r = data[i], g = data[i + 1], b = data[i + 2];
-    var key = Math.min(LEVELS - 1, (r / 256 * LEVELS) | 0) + '_' +
-      Math.min(LEVELS - 1, (g / 256 * LEVELS) | 0) + '_' +
-      Math.min(LEVELS - 1, (b / 256 * LEVELS) | 0);
-    var bucket = buckets[key];
-    if (!bucket) bucket = buckets[key] = { count: 0, r: 0, g: 0, b: 0 };
-    bucket.count++; bucket.r += r; bucket.g += g; bucket.b += b;
-  }
-  var list = Object.keys(buckets).map(function (k) { return buckets[k]; });
-  if (!list.length) return null;
-  list.sort(function (a, b) { return b.count - a.count; });
-  function avg(bk) { return [bk.r / bk.count, bk.g / bk.count, bk.b / bk.count]; }
-  var first = avg(list[0]);
-  var second = null;
-  for (var j = 1; j < list.length; j++) {
-    var cand = avg(list[j]);
-    if (rgbDistance(first, cand) > 60) { second = cand; break; }
-  }
-  if (!second) second = deriveToneVariant(first);
-  return [rgbToHex(first), rgbToHex(second)];
-}
-
-var projectPaletteCache = {}; // project.id -> Promise<[hex,hex] | null>
-function getProjectPalette(project) {
-  if (!projectPaletteCache[project.id]) {
-    projectPaletteCache[project.id] = getProjectMainImageEl(project).then(function (source) {
-      return source ? extractPaletteFromSource(source) : null;
-    }).catch(function () { return null; });
-  }
-  return projectPaletteCache[project.id];
-}
-
+// PROJECTS itself, the tone/wash palettes, the pdf.js pipeline, and the cover/wash-color loaders
+// (getProjectMainImageEl/getProjectPalette, both mobile/tablet-gated -- see
+// PROJECT_MEDIA_MOBILE_TIER) all now live in js/project-data.js, loaded before this file --
+// shared with the standalone mobile/tablet project detail pages (project/<id>/index.html,
+// js/project-page.js) so neither ever holds a second copy of this data. Add a project by editing
+// PROJECTS there only; nothing here needs to change.
 
 // ---- Loader: two completely independent systems sharing one screen. ----
 //
@@ -1478,245 +1101,14 @@ var openProjectPage; // assigned below; called by the Work carousel when a card 
   if (!page || !inner || !closeBtn) return;
 
   var activeCardEl = null;   // carousel card that opened this page, for focus return on close
-  var enlargedItem = null;   // currently enlarged gallery image, if any
-  var currentScrim = null;
 
-  function buildHead(project, indexLabel) {
-    var head = document.createElement('div');
-    head.className = 'project-page__head';
-    var num = document.createElement('span');
-    num.className = 'num';
-    num.textContent = indexLabel;
-    var h2 = document.createElement('h2');
-    h2.textContent = project.title;
-    var meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.textContent = project.category + ' — ' + project.year;
-    head.appendChild(num);
-    head.appendChild(h2);
-    head.appendChild(meta);
-    // optional per-project blurb -- most projects don't set this, so most heads are unchanged
-    if (project.description) {
-      var desc = document.createElement('p');
-      desc.className = 'description';
-      desc.textContent = project.description;
-      head.appendChild(desc);
-    }
-    return head;
-  }
-
-  // ---- FLIP-style enlarge/collapse for a gallery image -- items sit in normal flex flow (not
-  // absolutely positioned), so collapsing restores `position` to '' rather than 'absolute' ----
-  function expandItem(item, scrim) {
-    if (enlargedItem) collapseItem(enlargedItem);
-    var startRect = item.getBoundingClientRect();
-
-    item.dataset.baseWidth = item.style.width;
-    item.dataset.returnRect = JSON.stringify({ left: startRect.left, top: startRect.top, width: startRect.width, height: startRect.height });
-
-    item.style.position = 'fixed';
-    item.style.left = startRect.left + 'px';
-    item.style.top = startRect.top + 'px';
-    item.style.width = startRect.width + 'px';
-    item.style.height = startRect.height + 'px';
-    item.classList.add('enlarged');
-    scrim.classList.add('show');
-    enlargedItem = item;
-    currentScrim = scrim;
-
-    void item.offsetWidth; // force reflow so the size change below actually transitions
-
-    var targetH = Math.min(window.innerHeight * 0.82, startRect.height * 3.2);
-    var aspect = startRect.width / startRect.height;
-    var targetW = targetH * aspect;
-    if (targetW > window.innerWidth * 0.88) { targetW = window.innerWidth * 0.88; targetH = targetW / aspect; }
-
-    item.style.left = ((window.innerWidth - targetW) / 2) + 'px';
-    item.style.top = ((window.innerHeight - targetH) / 2) + 'px';
-    item.style.width = targetW + 'px';
-    item.style.height = targetH + 'px';
-  }
-
-  function collapseItem(item) {
-    var r = JSON.parse(item.dataset.returnRect);
-    item.style.left = r.left + 'px';
-    item.style.top = r.top + 'px';
-    item.style.width = r.width + 'px';
-    item.style.height = r.height + 'px';
-    if (currentScrim) currentScrim.classList.remove('show');
-    item.classList.remove('enlarged');
-    if (enlargedItem === item) enlargedItem = null;
-
-    function restore() {
-      item.style.position = '';
-      item.style.left = '';
-      item.style.top = '';
-      item.style.width = item.dataset.baseWidth;
-      item.style.height = '';
-    }
-    if (reducedMotion) {
-      restore();
-    } else {
-      item.addEventListener('transitionend', function handler(e) {
-        if (e.propertyName !== 'width') return;
-        item.removeEventListener('transitionend', handler);
-        restore();
-      });
-    }
-  }
-
-  // ---- level 2, image projects: the case study's own images in exact source order --
-  // drag-to-scroll or wheel, click any image to enlarge it ----
-  function buildGallery(project, items) {
-    var wrap = document.createElement('div');
-    wrap.className = 'gallery-track';
-    var scrim = document.createElement('div');
-    scrim.className = 'gallery-scrim';
-
-    // plain vertical mouse-wheel scrolls the strip horizontally; native trackpad horizontal
-    // swipe and Shift+wheel already move scrollLeft on their own (overflow-x:auto)
-    wrap.addEventListener('wheel', function (e) {
-      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
-      wrap.scrollLeft += e.deltaY;
-      e.preventDefault();
-    }, { passive: false });
-
-    var dragging = false, dragMoved = false, dragStartX = 0, dragStartScroll = 0;
-    wrap.addEventListener('mousedown', function (e) {
-      dragging = true; dragMoved = false;
-      dragStartX = e.pageX;
-      dragStartScroll = wrap.scrollLeft;
-      wrap.classList.add('dragging');
-    });
-    window.addEventListener('mousemove', function (e) {
-      if (!dragging) return;
-      var dx = e.pageX - dragStartX;
-      if (Math.abs(dx) > 4) dragMoved = true;
-      wrap.scrollLeft = dragStartScroll - dx;
-    });
-    window.addEventListener('mouseup', function () {
-      dragging = false;
-      wrap.classList.remove('dragging');
-    });
-
-    items.forEach(function (item, i) {
-      var el = document.createElement('div');
-      el.className = 'gallery-item';
-      el.tabIndex = 0;
-      el.setAttribute('role', 'button');
-
-      if (item.kind === 'image') {
-        var img = document.createElement('img');
-        img.src = item.src;
-        img.alt = project.title + ' — image ' + String(i + 1).padStart(2, '0');
-        img.loading = 'lazy';
-        img.draggable = false;
-        el.appendChild(img);
-        el.setAttribute('aria-label', 'Enlarge image ' + String(i + 1).padStart(2, '0') + ' of ' + items.length);
-      } else {
-        applyTone(el, i + 3);
-        el.setAttribute('aria-label', 'Enlarge plate ' + String(i + 1).padStart(2, '0'));
-      }
-
-      var label = document.createElement('span');
-      label.className = 'gallery-label';
-      label.textContent = String(i + 1).padStart(2, '0') + ' / ' + String(items.length).padStart(2, '0');
-      el.appendChild(label);
-
-      function toggle() {
-        if (dragMoved) return; // this click was the tail end of a drag-to-scroll, not an open
-        if (el.classList.contains('enlarged')) collapseItem(el);
-        else expandItem(el, scrim);
-      }
-      el.addEventListener('click', toggle);
-      el.addEventListener('keydown', function (e) {
-        if (e.key !== 'Enter' && e.key !== ' ') return;
-        e.preventDefault();
-        toggle();
-      });
-
-      wrap.appendChild(el);
-    });
-
-    scrim.addEventListener('click', function () {
-      if (enlargedItem) collapseItem(enlargedItem);
-    });
-
-    wrap.appendChild(scrim);
-    return wrap;
-  }
-
-  // ---- level 2, video projects: a clean page, no filmstrip ----
-  function buildVideo(project) {
-    var content = document.createElement('div');
-    content.className = 'project-page-video-content';
-
-    var box = document.createElement('div');
-    box.className = 'project-video';
-    applyTone(box, 0);
-    var ph = document.createElement('div');
-    ph.className = 'project-video__placeholder';
-    ph.textContent = 'Add this project’s video (set a src on the <video> element)';
-    var vid = document.createElement('video');
-    vid.controls = true;
-    vid.playsInline = true;
-    // the placeholder is `position:absolute`, which always paints above the plain in-flow
-    // <video> regardless of DOM order -- harmless while there's no real src to hide (reel,
-    // launch-film), but it would permanently mask an actual video once one is set, so it's only
-    // appended when there still isn't one
-    if (project.video) {
-      vid.src = project.video;
-    } else {
-      box.appendChild(ph);
-    }
-    box.appendChild(vid);
-    content.appendChild(box);
-
-    if (project.supporting) {
-      var sgrid = document.createElement('div');
-      sgrid.className = 'supporting-grid';
-      for (var i = 0; i < project.supporting; i++) {
-        var s = document.createElement('div');
-        s.className = 'supporting-item';
-        applyTone(s, i + 5);
-        sgrid.appendChild(s);
-      }
-      content.appendChild(sgrid);
-    }
-    return content;
-  }
-
-  function renderPage(project, indexLabel) {
-    inner.innerHTML = '';
-    page.classList.remove('project-page--video');
-    inner.appendChild(buildHead(project, indexLabel));
-
-    if (project.type === 'video') {
-      page.classList.add('project-page--video');
-      inner.appendChild(buildVideo(project));
-    } else if (project.pdf) {
-      // pages render live from the PDF (see loadPdfGalleryItems() at the top of the file) --
-      // brief loading state while that resolves, then the exact same buildGallery() every
-      // other image project uses, so it behaves identically once the items are in hand
-      var loadToken = {};
-      inner._pdfLoadToken = loadToken;
-      var loading = document.createElement('div');
-      loading.className = 'gallery-loading';
-      loading.textContent = 'Loading gallery…';
-      inner.appendChild(loading);
-      loadPdfGalleryItems(project).then(function (items) {
-        if (inner._pdfLoadToken !== loadToken) return; // page was closed/changed meanwhile
-        if (loading.parentNode) loading.remove();
-        inner.appendChild(buildGallery(project, items));
-      });
-    } else {
-      inner.appendChild(buildGallery(project, screenItemsFor(project)));
-    }
-  }
-
+  // desktop only -- on mobile/tablet, flyIntoProject() (see the Work carousel below) navigates to
+  // this project's own standalone page (project/<id>/) instead of ever calling this. The actual
+  // head/gallery/video building (and the PDF/video loads that go with it) live in
+  // js/project-render.js, shared with that standalone page so this dialog and it never diverge.
   openProjectPage = function (project, index, cardEl) {
     activeCardEl = cardEl;
-    renderPage(project, String(index + 1).padStart(2, '0'));
+    ProjectRender.renderInto(page, inner, project, String(index + 1).padStart(2, '0'));
     document.body.style.overflow = 'hidden';
     page.classList.add('open');
     page.setAttribute('aria-hidden', 'false');
@@ -1727,8 +1119,6 @@ var openProjectPage; // assigned below; called by the Work carousel when a card 
     page.classList.remove('open');
     page.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
-    enlargedItem = null;
-    currentScrim = null;
     if (activeCardEl) activeCardEl.focus({ preventScroll: true });
     setTimeout(function () { inner.innerHTML = ''; }, reducedMotion ? 0 : 520);
   }
@@ -1736,7 +1126,7 @@ var openProjectPage; // assigned below; called by the Work carousel when a card 
   closeBtn.addEventListener('click', closeProjectPage);
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
-      if (enlargedItem) { collapseItem(enlargedItem); return; }
+      if (ProjectRender.hasEnlarged()) { ProjectRender.collapseEnlarged(); return; }
       if (page.classList.contains('open')) closeProjectPage();
       return;
     }
@@ -1764,12 +1154,21 @@ var openProjectPage; // assigned below; called by the Work carousel when a card 
 // case-study content. Motion signature (easeInOutCubic tween, damped/capped inertia, a small
 // scale "grab tension" while dragging, idle auto-drift, no bounce/elastic anywhere) is adapted
 // from studying apechain.com's actual drag/carousel code -- see chat for the writeup. Deferred
-// via afterLoader() -- building the ring (including every video-preview <video> element the
-// projects with `videoPreview` set create) is real DOM/decode work that shouldn't compete with
+// via afterLoader() -- building the ring (on desktop, including every video-preview <video>
+// element the projects with `videoPreview` set create; see WORK_MOBILE_TIER below for why
+// mobile/tablet never creates one at all) is real DOM/decode work that shouldn't compete with
 // the loader for frames, and #work is well below the fold on first paint anyway. ----
 afterLoader(function () {
   var root = document.getElementById('work-carousel');
   if (!root) return;
+
+  // reads js/project-data.js's own tier flag (see that file's own comment on
+  // PROJECT_MEDIA_MOBILE_TIER) -- on this tier, buildProjectCard() below never instantiates a
+  // project's real PDF render or video preview; only a plain static <img> (cover/coverFallback)
+  // or, absent either, the existing tone-gradient placeholder. flyIntoProject() further down
+  // reads this same flag to navigate to the project's own page instead of opening the in-page
+  // dialog. Desktop is completely unaffected by either.
+  var WORK_MOBILE_TIER = PROJECT_MEDIA_MOBILE_TIER;
 
   // ---- work background: fixed full-viewport wash + drifting particles, visible only while
   // the Work section is on screen. Scoped separately from the site-wide #ambient-bg. ----
@@ -1951,8 +1350,16 @@ afterLoader(function () {
     // if/when to call it (see ensureNeighborhoodLoaded()/queueBackfillCover() above), so this
     // function stays agnostic to whether it's building the visible card or a distant one.
     var startCover = null;
+    // mobile/tablet: the card's cover is ALWAYS a plain static <img> (project.cover, or the
+    // lightweight project.coverFallback plate -- see js/project-data.js's own comment on both),
+    // never a live pdf.js render and never a <video> element -- there is nothing here for
+    // startCover() to instantiate beyond an <img src>, so a project with neither simply keeps the
+    // tone-gradient placeholder already applied to `inner` above, permanently, with no image at
+    // all. This is the architecture change itself: on this tier buildProjectCard() cannot reach
+    // project.pdf/project.videoPreview/project.video no matter what runs it or when.
+    var staticCoverSrc = WORK_MOBILE_TIER ? (project.cover || project.coverFallback || null) : project.cover;
 
-    if (project.cover) {
+    if (staticCoverSrc) {
       var img = document.createElement('img');
       img.className = 'carousel-card__cover';
       img.alt = project.title + ' — cover';
@@ -1964,13 +1371,18 @@ afterLoader(function () {
         return new Promise(function (resolve) {
           img.addEventListener('load', resolve, { once: true });
           img.addEventListener('error', resolve, { once: true });
-          img.src = project.cover;
+          img.src = staticCoverSrc;
         });
       };
+    } else if (WORK_MOBILE_TIER) {
+      // no static cover/coverFallback exists for this project (kanye-west, breaking-the-grid) --
+      // the tone-gradient letterbox from `inner`'s own applyTone() above is the entire card;
+      // startCover stays null (a no-op) rather than reaching for the PDF this tier disallows.
     } else if (project.pdf) {
       // page 1 of the PDF, rendered live -- the tone gradient already applied above shows
       // through as a letterbox exactly like a real `cover` image (object-fit:contain) until
-      // (and if) the render resolves, and stays as the letterbox regardless once it does
+      // (and if) the render resolves, and stays as the letterbox regardless once it does.
+      // Desktop only -- see staticCoverSrc/WORK_MOBILE_TIER above.
       var pdfCoverImg = document.createElement('img');
       pdfCoverImg.className = 'carousel-card__cover';
       pdfCoverImg.alt = project.title + ' — cover';
@@ -1983,7 +1395,10 @@ afterLoader(function () {
     } else if (project.videoPreview) {
       // paused on its first frame by default -- no `autoplay`/`loop`-while-idle here, playback
       // is only ever started from the card's mouseenter handler below, while this card is the
-      // active/centered one; loop only takes effect once .play() actually runs on hover
+      // active/centered one; loop only takes effect once .play() actually runs on hover.
+      // Desktop only (mouseenter never fires from touch anyway) -- see
+      // staticCoverSrc/WORK_MOBILE_TIER above; this <video> element, and the preload it starts,
+      // never exists on mobile/tablet at all.
       var previewVid = document.createElement('video');
       previewVid.className = 'carousel-card__preview';
       previewVid.muted = true;
@@ -2005,8 +1420,11 @@ afterLoader(function () {
 
     // `videoPreview` projects communicate "this is a video" through the hover-playing preview
     // itself (see requirements), so they deliberately skip the static play-icon overlay other
-    // video projects (reel, launch-film) show
-    if (project.type === 'video' && !project.videoPreview) {
+    // video projects (reel, launch-film) show -- except on mobile/tablet, where that hover
+    // preview never exists (see above) and this play icon is what marks the card as a video
+    // instead, over its static cover/coverFallback image (or the bare gradient, for the two
+    // projects with neither).
+    if (project.type === 'video' && (!project.videoPreview || WORK_MOBILE_TIER)) {
       var play = document.createElement('div');
       play.className = 'carousel-card__play';
       play.innerHTML = '<span>▶</span>';
@@ -2236,7 +1654,17 @@ afterLoader(function () {
     var startRect = media.getBoundingClientRect();
 
     function reveal() {
-      openProjectPage(project, index, cardEl);
+      // mobile/tablet: a real, separate document (project/<id>/index.html) rather than the
+      // in-page dialog -- the whole point of the mobile architecture is that the browser only
+      // ever holds one project's heavy media at a time, and a genuine navigation guarantees that
+      // trivially (the homepage's own document, and everything on it, unloads) in a way an
+      // in-page dialog close never fully can on a memory-constrained device. Desktop keeps the
+      // existing in-page dialog unchanged -- see openProjectPage() above.
+      if (WORK_MOBILE_TIER) {
+        window.location.href = 'project/' + project.id + '/';
+      } else {
+        openProjectPage(project, index, cardEl);
+      }
     }
 
     if (reducedMotion) { reveal(); return; }
