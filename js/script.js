@@ -562,9 +562,24 @@ function getProjectPalette(project) {
     }
   }
 
+  // perf/mobile-safety: the full sprite sheet (105 peeps) all become active crowd members on a wide
+  // desktop stage -- fine there, but a phone-width canvas draws exactly as many drawImage() calls
+  // per frame for a fraction of the stage area, and this is the same startup window that previously
+  // produced an iPhone/iPad freeze. Scale the active count down proportionally on narrower stages
+  // only; anything at/above REFERENCE_STAGE_WIDTH (a typical laptop viewport) keeps today's exact
+  // full-count behavior, so desktop density is untouched. A floor keeps the crowd from ever reading
+  // as sparse/empty on the smallest phones.
+  var REFERENCE_STAGE_WIDTH = 1440;
+  var MIN_ACTIVE_PEEPS = 24;
   function initCrowd() {
-    while (availablePeeps.length) {
+    var maxActive = allPeeps.length;
+    if (stage.width > 0 && stage.width < REFERENCE_STAGE_WIDTH) {
+      maxActive = Math.max(MIN_ACTIVE_PEEPS, Math.round(allPeeps.length * (stage.width / REFERENCE_STAGE_WIDTH)));
+    }
+    var n = 0;
+    while (availablePeeps.length && n < maxActive) {
       addPeepToCrowd().walk.progress(Math.random());
+      n++;
     }
   }
 
@@ -1036,6 +1051,30 @@ afterLoader(function () {
   }
   window.addEventListener('resize', resizeCanvas);
 
+  // perf: this preload used to fire every frame's fetch()+createImageBitmap() at once (127 of them)
+  // the instant this file runs -- i.e. squarely inside the loader's own opening beat, competing with
+  // its canvas render + text entrance for exactly the frame budget that stutter comes from, and the
+  // likely source of the earlier iPhone/iPad startup freeze (mobile decode is memory/thread-limited).
+  // A small concurrency pool keeps only a handful of loads in flight at once instead -- every frame
+  // still starts loading immediately and is still resident well within the loader's ~2.6s hold (see
+  // CROWD_LEAD_MS/HOLD_MS above), so the "already loaded by hero reveal" behavior is unchanged; only
+  // the simultaneous burst is removed. Lower cap on narrow/mobile viewports, same reasoning as the
+  // loader crowd cap above.
+  var FRAME_LOAD_CONCURRENCY = window.innerWidth <= 760 ? 3 : 6;
+  function loadFramesThrottled(count, pad, decodeW, decodeH) {
+    var next = 0, active = 0;
+    function pump() {
+      while (active < FRAME_LOAD_CONCURRENCY && next < count) {
+        active++;
+        loadFrame(next++, pad, decodeW, decodeH).then(function () {
+          active--;
+          pump();
+        });
+      }
+    }
+    pump();
+  }
+
   fetch(FRAMES_BASE + 'manifest.json').then(function (r) { return r.json(); }).then(function (manifest) {
     frameCount = manifest.count;
     nativeW = manifest.width;
@@ -1049,7 +1088,7 @@ afterLoader(function () {
       return;
     }
 
-    for (var i = 0; i < frameCount; i++) loadFrame(i, pad, decodeSize.w, decodeSize.h);
+    loadFramesThrottled(frameCount, pad, decodeSize.w, decodeSize.h);
     startScrollScrub();
   }).catch(function () {});
 
