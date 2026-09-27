@@ -14,6 +14,24 @@ var fastTravel = document.getElementById('fast-travel');
 var frameTop = document.getElementById('frame-top');
 var frameBottom = document.getElementById('frame-bottom');
 
+// ---- mobile-only: kick off palette extraction for the Work carousel's very first project (the
+// same 'linka' lookup buildMobileWork() below uses) the instant this file runs, in parallel with
+// the loader -- not gated behind afterLoader()'s own idle-callback trickle, which could otherwise
+// still be queued up several idle slices later, well after the visitor has already scrolled from
+// Hero into Projects. getProjectPalette() caches by project id (js/project-data.js), so
+// buildMobileWork()'s own later call just reuses this same in-flight/resolved promise -- this
+// never blocks anything, it only starts the work earlier so it has already resolved by the time
+// the Hero -> Projects scroll transition actually happens (see mobileUpdateWash() below).
+// PROJECT_MEDIA_MOBILE_TIER (js/project-data.js) is the exact same coarse-pointer +
+// smaller-of-width/height tier check used everywhere else on this site -- desktop's own palette
+// extraction (the 3D ring's updateWash()) is untouched and still only ever runs on demand there.
+if (PROJECT_MEDIA_MOBILE_TIER) {
+  (function () {
+    var initial = PROJECTS.filter(function (p) { return p.id === 'linka'; })[0] || PROJECTS[0];
+    if (initial) getProjectPalette(initial);
+  })();
+}
+
 // ---- Loader-gated startup ----
 // While the loader is on screen, its own crowd canvas + GSAP typography timeline should be the
 // only thing spending frame budget -- everything below that isn't needed for the loader itself or
@@ -129,6 +147,27 @@ function markPrismReady() {
     markLoaderDone();
   }
 
+  // mobile-only: a genuine browser back/forward navigation landing back on this page -- Safari's
+  // native back button, or the in-site back link on project/<id>/index.html, which now uses
+  // history.back() (see js/project-page.js) -- must restore the homepage immediately instead of
+  // replaying the intro loader from scratch. Detected via the Navigation Timing API's own
+  // navigation type rather than a custom "already shown" flag: 'back_forward' is the browser
+  // itself reporting that this load is it traversing its own history, which a fresh visit or a
+  // reload never report, so this is the actual root cause fix rather than a guess/workaround.
+  // Gated by the same coarse-pointer + smaller-of-width/height mobile/tablet convention as every
+  // other mobile-tier check in this file -- a fine-pointer desktop browser always skips this and
+  // keeps replaying the loader exactly as before.
+  var mobileTierWidth = isCoarsePointer ? Math.min(window.innerWidth, window.innerHeight) : window.innerWidth;
+  var isMobileTier = isCoarsePointer && mobileTierWidth <= 1024;
+  var navEntry = (window.performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation')[0] : null;
+  var isBackForwardNav = navEntry ? navEntry.type === 'back_forward'
+    : !!(window.performance && performance.navigation && performance.navigation.type === 2);
+
+  if (isMobileTier && isBackForwardNav) {
+    failOpen();
+    return;
+  }
+
   if (reducedMotion || !canvas || typeof gsap === 'undefined') {
     failOpen();
     return;
@@ -211,17 +250,26 @@ function markPrismReady() {
 
   var walks = [normalWalk];
 
-  // ---- factory (verbatim from the source) ----
+  // ---- factory (verbatim from the source, plus applyScale() -- see peepScale() below) ----
   function createPeep(args) {
     var image = args.image, rect = args.rect;
     var peep = {
-      image: image, rect: [], width: 0, height: 0, drawArgs: [],
+      image: image, rect: [], width: 0, height: 0, baseWidth: 0, baseHeight: 0, drawArgs: [],
       x: 0, y: 0, anchorY: 0, scaleX: 1, walk: null,
       setRect: function (r) {
         peep.rect = r;
+        peep.baseWidth = r[2];
+        peep.baseHeight = r[3];
         peep.width = r[2];
         peep.height = r[3];
         peep.drawArgs = [peep.image].concat(r, [0, 0, peep.width, peep.height]);
+      },
+      // mobile-only draw-size taper (see peepScale()) -- rescales the destination width/height
+      // used by render()/resetPeep() below, never the sampling rect above, so the crowd keeps
+      // sampling the sprite sheet at full detail and is just composited smaller
+      applyScale: function (scale) {
+        peep.width = peep.baseWidth * scale;
+        peep.height = peep.baseHeight * scale;
       },
       // perf: setTransform(...) + no save/restore instead of save()/translate()/scale()/restore().
       // save()/restore() snapshot the *entire* 2D context state (transform, clip, fillStyle,
@@ -287,6 +335,26 @@ function markPrismReady() {
     var t = (w - CROWD_PHONE_MAX_WIDTH) / (CROWD_DESKTOP_MIN_WIDTH - CROWD_PHONE_MAX_WIDTH);
     return Math.round(CROWD_PHONE_FLOOR + t * (total - CROWD_PHONE_FLOOR));
   }
+
+  // mobile-only fix: on a narrow coarse-pointer stage the crowd is drawn at the sprite sheet's
+  // full native cell size (see the CANVAS_SCALE comment above), which is large enough relative to
+  // a phone-width canvas to cover the centered "WELCOME TO MY PORTFOLIO" type. This only shrinks
+  // each peep's drawn size -- same count, same sampling rect, same walk/timing logic, same
+  // desktop behavior -- tapering with stage width using the exact same coarse-pointer
+  // smaller-of-width/height metric and CROWD_DESKTOP_MIN_WIDTH/CROWD_PHONE_MAX_WIDTH breakpoints
+  // as maxActivePeeps() above, down to PEEP_SIZE_PHONE_FLOOR at CROWD_PHONE_MAX_WIDTH and below.
+  // Fine-pointer (desktop) stages always get 1 here, regardless of window width, so resizing a
+  // desktop browser narrow can never trigger this -- only an actual touch/coarse-pointer device.
+  var PEEP_SIZE_PHONE_FLOOR = 0.55;
+  function peepScale() {
+    if (!isCoarsePointer) return 1;
+    var w = Math.min(stage.width, stage.height || stage.width);
+    if (w <= 0 || w >= CROWD_DESKTOP_MIN_WIDTH) return 1;
+    if (w <= CROWD_PHONE_MAX_WIDTH) return PEEP_SIZE_PHONE_FLOOR;
+    var t = (w - CROWD_PHONE_MAX_WIDTH) / (CROWD_DESKTOP_MIN_WIDTH - CROWD_PHONE_MAX_WIDTH);
+    return PEEP_SIZE_PHONE_FLOOR + t * (1 - PEEP_SIZE_PHONE_FLOOR);
+  }
+
   function initCrowd() {
     var maxActive = maxActivePeeps();
     var n = 0;
@@ -332,6 +400,11 @@ function markPrismReady() {
     stage.height = canvas.clientHeight;
     canvas.width = stage.width * CANVAS_SCALE;
     canvas.height = stage.height * CANVAS_SCALE;
+
+    // must run before initCrowd()/resetPeep() below, since resetPeep() positions each peep off
+    // its own peep.width/peep.height
+    var scale = peepScale();
+    allPeeps.forEach(function (peep) { peep.applyScale(scale); });
 
     crowd.forEach(function (peep) { peep.walk.kill(); });
     crowd.length = 0;
@@ -730,6 +803,41 @@ afterLoader(function () {
   var content = document.getElementById('hero-content');
   if (!track || !canvas) return;
 
+  // heroTierWidth (not raw window.innerWidth) -- see isCoarsePointer's own comment near the top of
+  // this file: a landscape iPad/tablet can report a width past 1024 (a 12.9" iPad Pro reports
+  // 1366px in landscape) despite being the exact same memory-constrained device as its own
+  // <=1024px portrait orientation. For a coarse-pointer device, this uses the smaller of
+  // width/height instead, so rotating a tablet can't accidentally skip the safe path below.
+  // Desktop (fine pointer) always uses raw innerWidth, unaffected. Computed up front, before any
+  // canvas/manifest/decode setup below, so the mobile branch immediately following can skip all
+  // of it outright rather than merely never calling into it.
+  var heroTierWidth = isCoarsePointer ? Math.min(window.innerWidth, window.innerHeight) : window.innerWidth;
+  var HERO_MOBILE_TIER = heroTierWidth <= 1024;
+
+  if (HERO_MOBILE_TIER) {
+    // phone/tablet: ONE static image -- the exact existing frame-001.webp (the complete
+    // MacBook/Apple Pencil/iPad composition), the site's own first frame, inserted as a plain
+    // <img> in place of the canvas. No manifest fetch, no createImageBitmap decode pipeline, no
+    // canvas backing-store sizing, no scroll listener, no requestAnimationFrame loop -- that
+    // entire machinery exists to cycle through 126 frames as the user scrolls, which a single
+    // always-static image has no use for at all. Simpler is also more robust here: nothing in
+    // this path depends on the canvas element's own layout timing or backing-store dimensions
+    // ever being correct, the way drawFrame()/coverDecodeRect() below do. The canvas itself is
+    // hidden rather than removed (harmless, inert, never given a src on this tier) so nothing
+    // else that references #hero-bg-canvas by id needs to change. Desktop is completely
+    // untouched: it never runs this branch, and reducedMotion (checked further down) still uses
+    // the canvas pipeline exactly as before -- this only replaces HERO_MOBILE_TIER's own path.
+    canvas.style.display = 'none';
+    var mobileFrame = document.createElement('img');
+    mobileFrame.className = 'hero-bg-mobile-frame';
+    mobileFrame.alt = '';
+    mobileFrame.decoding = 'async';
+    mobileFrame.fetchPriority = 'high'; // above-the-fold hero content, guaranteed visible on load
+    mobileFrame.src = 'assets/hero/frames/frame-001.webp';
+    canvas.insertAdjacentElement('afterend', mobileFrame);
+    return;
+  }
+
   var ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high'; // best resampling for the native-res source -> backing-store draw
@@ -740,12 +848,11 @@ afterLoader(function () {
   var CONTENT_MAX_TRANSLATE = 10; // 0 -> -10px
   var CONTENT_MAX_FADE = 0.05;    // 1 -> 0.95
 
-  var frames = [];  // sparse: frames[i] is set once that frame has loaded and decoded. On desktop
-                     // this fills in fully and stays that way (every index, held for the page's
-                     // life). On phone/tablet it's a small sliding window instead -- see
-                     // ensureMobileFrame()/evictOutsideWindow() below -- entries outside that
-                     // window are actively deleted (and, for ImageBitmap, .close()d) so this array
-                     // never holds more than a handful of frames at once on those tiers.
+  var frames = [];  // sparse: frames[i] is set once that frame has loaded and decoded. Desktop
+                     // only -- this fills in fully and stays that way (every index, held for the
+                     // page's life). On phone/tablet (HERO_MOBILE_TIER, above) this whole
+                     // canvas/frames pipeline is never reached at all -- see this IIFE's own early
+                     // return for that tier, well before this line.
   var frameCount = 0;
   var nativeW = 0, nativeH = 0;
   var lastDrawnIndex = -1;
@@ -806,9 +913,8 @@ afterLoader(function () {
   // the browser never has to hold anywhere near a full 3840x2160 bitmap per frame in memory. Falls
   // back to a plain Image (decoded at native size, cropped only at draw time by drawFrame() as
   // before) on the rare browser without createImageBitmap. If frames[i] already holds something
-  // (a re-request for an index that's already resident, e.g. the visitor scrolled back to it
-  // before it was evicted) this resolves immediately without a second fetch/decode -- see
-  // ensureMobileFrame()'s own guard below, which is what actually prevents that call in practice.
+  // (a re-request for an index that's already resident) this resolves immediately without a
+  // second fetch/decode.
   function loadFrame(i, pad, rect) {
     if (frames[i]) return Promise.resolve();
     var url = frameUrl(i, pad);
@@ -852,15 +958,6 @@ afterLoader(function () {
   }
   window.addEventListener('resize', resizeCanvas);
 
-  // heroTierWidth (not raw window.innerWidth) -- see isCoarsePointer's own comment near the top of
-  // this file: a landscape iPad/tablet can report a width past 1024 (a 12.9" iPad Pro reports
-  // 1366px in landscape) despite being the exact same memory-constrained device as its own
-  // <=1024px portrait orientation. For a coarse-pointer device, this uses the smaller of
-  // width/height instead, so rotating a tablet can't accidentally skip the safe path below.
-  // Desktop (fine pointer) always uses raw innerWidth, unaffected.
-  var heroTierWidth = isCoarsePointer ? Math.min(window.innerWidth, window.innerHeight) : window.innerWidth;
-  var HERO_MOBILE_TIER = heroTierWidth <= 1024;
-
   // ---- desktop: unchanged -- decode every frame once, keep every one resident for the page's
   // life. No concurrency pool needed at all above 1 in-flight fetch+decode chain; this file never
   // fired more than FRAME_LOAD_CONCURRENCY requests at once even before this pass, and desktop
@@ -886,42 +983,6 @@ afterLoader(function () {
     return out;
   }
 
-  // ---- phone/tablet: a true small sliding window, not a bounded-but-still-permanent preload. ----
-  // A previous pass here still decoded ~30 frames up front and kept every one of them resident
-  // forever -- concurrency and a total cap bound the RATE and the CEILING, but nothing was ever
-  // released, and decode order followed a fixed background list unrelated to where the visitor
-  // actually was. This is a genuinely different, smaller model: at most a handful of frames are
-  // EVER resident at once (HERO_MOBILE_WINDOW on either side of whichever frame the scroll-scrub
-  // loop currently wants, plus frame 0 as a permanent fallback anchor -- see drawFrame()'s own
-  // nearest-loaded walk, which needs SOMETHING to fall back to before the window has caught up).
-  // Decode is reactive, driven directly by the current scroll target every rAF tick (see loop() in
-  // startScrollScrub() below) instead of a fixed preload list, and strictly one-at-a-time
-  // (mobileDecoding below) -- if the target changes again before that single in-flight decode
-  // finishes, nothing new is queued; the next tick simply re-reads whatever the CURRENT target is
-  // once the in-flight one resolves, so a fast scroll through frame 10 -> 30 -> 60 -> 90 decodes
-  // only wherever the visitor actually lands, never all four.
-  var HERO_MOBILE_WINDOW = 2; // frames kept resident on either side of the current target
-  var mobileDecoding = false;
-  function ensureMobileFrame(idx) {
-    if (!HERO_MOBILE_TIER || idx < 0 || idx >= frameCount) return;
-    if (frames[idx] || mobileDecoding || !decodeRect) return;
-    mobileDecoding = true;
-    loadFrame(idx, pad, decodeRect).then(function () {
-      mobileDecoding = false;
-      evictOutsideWindow(idx);
-    });
-  }
-  function evictOutsideWindow(centerIdx) {
-    for (var i = 1; i < frameCount; i++) { // i=1: index 0 is the permanent fallback, never evicted
-      if (!frames[i]) continue;
-      if (Math.abs(i - centerIdx) > HERO_MOBILE_WINDOW) {
-        var img = frames[i];
-        if (img && typeof img.close === 'function') img.close(); // ImageBitmap: release GPU memory
-        delete frames[i];
-      }
-    }
-  }
-
   fetch(FRAMES_BASE + 'manifest.json').then(function (r) { return r.json(); }).then(function (manifest) {
     frameCount = manifest.count;
     nativeW = manifest.width;
@@ -935,19 +996,8 @@ afterLoader(function () {
       return;
     }
 
-    // mobile/tablet: load only frame 0 up front -- the loader/hero-reveal only ever needs the site
-    // to be visually correct the instant it hands off, not the full scroll sequence ready in
-    // advance; scrolling doesn't even become possible until well after that hand-off. Every other
-    // frame is now decoded reactively, one at a time, by ensureMobileFrame()/loop() above/below as
-    // the visitor actually scrolls -- there is no separate background preload pass to kick off
-    // here at all (a previous pass had one; removed, see the sliding-window comment above for why).
-    // Desktop is completely untouched: same immediate full-sequence preload as before, byte for
-    // byte, via loadFrames()/rangeIndices() exactly as before this pass.
-    if (HERO_MOBILE_TIER) {
-      loadFrame(0, pad, decodeRect).then(function () { drawFrame(0); });
-      startScrollScrub();
-      return;
-    }
+    // HERO_MOBILE_TIER already returned at the top of this IIFE, before this manifest fetch was
+    // ever issued -- everything from here down is desktop only.
 
     loadFrames(rangeIndices(frameCount), pad, decodeRect);
     startScrollScrub();
@@ -966,6 +1016,9 @@ afterLoader(function () {
     function measureTrackTop() {
       trackTop = track.getBoundingClientRect().top + window.scrollY;
     }
+    // desktop only -- startScrollScrub() is never called at all on phone/tablet any more (see the
+    // HERO_MOBILE_TIER branch above), so every line below runs exclusively on the fine-pointer
+    // tier this always targeted.
     function updateTarget() {
       targetT = Math.min(Math.max((window.scrollY - trackTop) / SCROLL_RANGE, 0), 1);
     }
@@ -978,23 +1031,14 @@ afterLoader(function () {
       curT += (targetT - curT) * 0.09;
 
       var idx = Math.round(curT * (frameCount - 1));
-      // on phone/tablet, this is also what drives the reactive sliding-window decode -- see
-      // ensureMobileFrame()'s own comment above. A no-op on desktop (HERO_MOBILE_TIER is false) and
-      // a cheap no-op here too whenever idx is already resident or a decode is already in flight.
-      ensureMobileFrame(idx);
       // walk back to the nearest already-loaded frame instead of leaving the canvas stale if
       // loading hasn't caught up yet (slow connection) -- never draws a missing frame
       while (idx > 0 && !frames[idx]) idx--;
       drawFrame(idx);
 
-      // this is a SEPARATE cosmetic effect from the frame sequence above (a subtle scale/lift/fade
-      // on the hero text as the sequence nears its end) -- not the frame-sequence scrubber itself,
-      // which is exactly why it's the thing to remove on phone/tablet while ensureMobileFrame()/
-      // drawFrame() above stay fully intact. transform+opacity are the cheap GPU-compositor-only
-      // properties (no filter/blur involved), but they were still being written unconditionally on
-      // every single rAF tick on every device, including phone/tablet, with no mobile gate at all.
-      // Desktop is unaffected -- identical scale/translateY/opacity math, same as before this pass.
-      if (content && !HERO_MOBILE_TIER) {
+      // a subtle scale/lift/fade on the hero text as the sequence nears its end -- a separate
+      // cosmetic effect from the frame sequence above, desktop only.
+      if (content) {
         var scale = 1 - curT * CONTENT_MAX_SCALE;
         var ty = -curT * CONTENT_MAX_TRANSLATE;
         content.style.transform = 'scale(' + scale.toFixed(4) + ') translateY(' + ty.toFixed(2) + 'px)';
@@ -1075,8 +1119,16 @@ afterLoader(function () {
 })();
 
 // ---- Scroll reveal for sections -- deferred via afterLoader(), nothing below the hero needs
-// its reveal observer armed until after the loader hands off. ----
+// its reveal observer armed until after the loader hands off. Desktop/fine-pointer only: this is
+// a "fade up into place" presentation effect, not load-bearing content, and the mobile page is
+// meant to be a normal, natively-scrolling document -- every .reveal element (see css/style.css's
+// own mobile media query, mirroring its existing reduced-motion override) already shows at its
+// final opacity:1/transform:none state immediately there, so there is nothing for an observer to
+// toggle; not creating one at all means zero IntersectionObserver callbacks fire for this on
+// phone/tablet, not just a class that never visibly changes. Same coarse-pointer + smaller-of-
+// width/height convention as this file's other mobile-tier checks. ----
 afterLoader(function () {
+  if (isCoarsePointer && Math.min(window.innerWidth, window.innerHeight) <= 1024) return;
   var items = document.querySelectorAll('.reveal');
   var obs = new IntersectionObserver(function (entries) {
     entries.forEach(function (entry) {
@@ -1148,27 +1200,432 @@ var openProjectPage; // assigned below; called by the Work carousel when a card 
   });
 })();
 
+// width, as a fraction of viewport width: 0.88 at phone widths, tapering smoothly down to the
+// existing 0.72 desktop ratio across the 760-1024px tablet band, reaching exactly 0.72 at 1024
+// and staying exactly 0.72 above it. Shared by the desktop ring and the mobile/tablet single-card
+// view (buildMobileWork(), below) so a card is exactly the same size in both -- this governs only
+// how big the card is, never how many exist at once, which is what actually differs between them.
+function cardWidthRatio(vw) {
+  if (vw <= 760) return 0.88;
+  if (vw >= 1024) return 0.72;
+  var t = (vw - 760) / (1024 - 760);
+  return 0.88 - t * (0.88 - 0.72);
+}
+function cardSize() {
+  var vw = window.innerWidth, vh = window.innerHeight;
+  var width = Math.min(1200, Math.max(300, vw * cardWidthRatio(vw)));
+  var height = Math.min(vh * 0.74, width * 0.6);
+  return { width: Math.round(width), height: Math.round(height) };
+}
+
+// ---- Mobile/tablet Work carousel: a from-scratch, deliberately separate implementation from the
+// desktop 3D ring below (see the WORK_MOBILE_TIER branch inside the afterLoader() call right after
+// this function) -- not a variant of it, a different resource model entirely.
+//
+// The desktop ring keeps every one of PROJECTS.length cards (13 as of this writing) permanently in
+// the DOM as 3D-transformed children of one preserve-3d container, each one carrying its own
+// decoded cover bitmap once loaded, and rewrites every card's transform/opacity on every single
+// animation frame of every rotation (its own updateDepth()) regardless of how many of those cards
+// are actually near the front. That is real, unavoidable per-card cost that scales with how many
+// projects exist, not with how many the visitor has looked at -- fundamentally the wrong shape for
+// a memory/GPU-constrained phone no matter how tightly any one image's own loading is bounded (a
+// previous pass here tried exactly that -- an eviction window over the ring's own cards -- and
+// repeated rapid left/right navigation could still crash). This function instead renders exactly
+// ONE project card in the DOM at a time -- the active one -- with at most one additional, plain
+// (never attached to the DOM) Image() object speculatively preloading a single neighbor in the
+// direction the visitor just moved. Never more than 2 cover images resident at once, regardless of
+// how many projects exist or how fast the visitor navigates; the previous/next project the visitor
+// isn't currently looking at has no DOM node and no decoded bitmap at all.
+//
+// Cancellation: mobileGen is a monotonically increasing counter, bumped on every navigation
+// (arrow tap or swipe alike). Every async image load captures the generation it started under and
+// checks it again before touching the DOM once it resolves -- a load belonging to a project the
+// visitor has since navigated away from is silently discarded, never rendered, no matter how many
+// more taps happened in between or what order things finish in. There is no queue: navigating
+// A -> B -> C -> D -> E in rapid succession converges directly on E's own state; B/C/D never each
+// get their own transition, image load, or visible flash. No requestAnimationFrame loop of any
+// kind is used for the transition itself -- swaps are driven by the Web Animations API
+// (info.animate()-style, the same technique updateInfo() below already uses), which is cancelled
+// by simply calling .cancel()/starting a new one, never by hand-rolled per-frame bookkeeping.
+//
+// Desktop is completely unaffected: it never calls this function, and the desktop closure below
+// never reads any state this function owns. Everything here reads only tier-agnostic shared
+// data/helpers (PROJECTS, applyTone, getProjectPalette, WASH_PALETTE, cardSize() above).
+function buildMobileWork(root) {
+  var count = PROJECTS.length;
+  if (!count) return;
+
+  // ---- background wash: identical mechanism/CSS to the desktop ring's own (see updateWash()
+  // below) -- a fixed full-viewport color wash behind the stage, crossfading to the active
+  // project's own extracted palette. No particle layer here: those were always a decorative
+  // accent riding on the same background, already fully static (no animation loop) on this tier
+  // from a previous pass -- skipping their creation entirely removes 26 more idle DOM nodes for a
+  // phone screen that could rarely see more than a couple of them clearly to begin with. ----
+  var workBg = document.createElement('div');
+  workBg.className = 'work-bg';
+  var wash = document.createElement('div');
+  wash.className = 'work-bg__wash';
+  workBg.appendChild(wash);
+  root.appendChild(workBg);
+
+  // .work-bg starts at opacity:0 (see css/style.css) and only fades in via its own .in-view
+  // class -- a plain visibility toggle, not a per-frame loop, so the wash fades in/out as the
+  // Work section scrolls on/off screen rather than staying lit over the rest of the page.
+  //
+  // rootMargin extends the intersection root itself rather than waiting for Work's own edge to
+  // reach the real viewport boundary -- a generous 35% of viewport height below (Work approaches
+  // from below as the visitor scrolls down, so this side needs the head start) and a smaller 15%
+  // above (a gentler, symmetric early-exit on the way back up to Hero). This is what actually
+  // makes the wash's own color (see mobileUpdateWash() below, now always set synchronously the
+  // instant this runs, never left at its near-black CSS initial-value) begin asserting itself
+  // while Hero is still substantially on screen, mid-scroll, instead of only after Work's own
+  // boundary has already fully crossed into view -- a continuous handoff rather than a section
+  // that "arrives" and only then receives its color. Mobile-only: desktop's own equivalent
+  // (bgVisibilityObserver, further below in this file) is untouched.
+  var workSectionEl = document.getElementById('work');
+  if (workSectionEl) {
+    var mobileBgObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        workBg.classList.toggle('in-view', entry.isIntersecting);
+      });
+    }, { threshold: 0, rootMargin: '15% 0px 35% 0px' });
+    mobileBgObserver.observe(workSectionEl);
+  }
+
+  var viewport = document.createElement('div');
+  viewport.className = 'carousel-viewport';
+  // .carousel-ring reused purely as a plain positioning frame (position:absolute; inset:0) --
+  // its own preserve-3d is inert with a single, never-rotated child, which is all this tier ever
+  // puts inside it.
+  var stage = document.createElement('div');
+  stage.className = 'carousel-ring';
+  stage.tabIndex = 0;
+  stage.setAttribute('role', 'region');
+  stage.setAttribute('aria-label', 'Project carousel — swipe or use the arrows to browse');
+  viewport.appendChild(stage);
+
+  var info = document.createElement('div');
+  info.className = 'carousel-info';
+  var infoNum = document.createElement('span'); infoNum.className = 'carousel-info__num';
+  var infoTitle = document.createElement('h3'); infoTitle.className = 'carousel-info__title';
+  var infoMeta = document.createElement('div'); infoMeta.className = 'carousel-info__meta';
+  var infoCategory = document.createElement('span');
+  var infoYear = document.createElement('span');
+  infoMeta.appendChild(infoCategory);
+  infoMeta.appendChild(infoYear);
+  info.appendChild(infoNum);
+  info.appendChild(infoTitle);
+  info.appendChild(infoMeta);
+  viewport.appendChild(info);
+
+  var prevBtn = document.createElement('button');
+  prevBtn.type = 'button';
+  prevBtn.className = 'carousel-nav carousel-nav--prev';
+  prevBtn.setAttribute('aria-label', 'Previous project');
+  prevBtn.textContent = '‹';
+  var nextBtn = document.createElement('button');
+  nextBtn.type = 'button';
+  nextBtn.className = 'carousel-nav carousel-nav--next';
+  nextBtn.setAttribute('aria-label', 'Next project');
+  nextBtn.textContent = '›';
+  prevBtn.addEventListener('click', function () { step(-1); });
+  nextBtn.addEventListener('click', function () { step(1); });
+  viewport.appendChild(prevBtn);
+  viewport.appendChild(nextBtn);
+
+  root.appendChild(viewport);
+
+  // ---- background wash + info panel updates -- same mechanism/CSS as the desktop ring's own
+  // updateWash()/updateInfo() (a live palette crossfade, a quick fade-out/fade-in text swap via
+  // the Web Animations API), reimplemented locally against this function's own wash/info elements
+  // rather than calling the desktop closure's versions, which close over a completely different
+  // set of DOM nodes. mobileGen (read at call time, checked again once the async palette extract
+  // resolves) is this function's own "supersede a stale async result" guard, the same role
+  // displayedIndex plays for the desktop ring's own updateWash(). ----
+  function mobileUpdateWash(idx) {
+    var project = PROJECTS[idx];
+    var gen = mobileGen;
+    var fallback = WASH_PALETTE[((idx % WASH_PALETTE.length) + WASH_PALETTE.length) % WASH_PALETTE.length];
+    // set synchronously, immediately -- this wash must never sit at its near-black CSS
+    // initial-value (see @property --wash-a/--wash-b, css/style.css) while it fades into view
+    // from the Hero->Work scroll (see mobileBgObserver's own rootMargin above): that's what read
+    // as a "sudden color pop" once the real extracted palette (an async image decode, see
+    // js/project-data.js) finally landed a beat after the section was already on screen. The real
+    // color, once/if it resolves to something different, then crossfades in on top of this via
+    // the same --wash-a/--wash-b transition already used for switching between projects -- in the
+    // common case it has already been prefetched (see the top of this file) and resolves well
+    // before this ever runs, so this fallback is never even visibly painted.
+    wash.style.setProperty('--wash-a', fallback[0]);
+    wash.style.setProperty('--wash-b', fallback[1]);
+    getProjectPalette(project).then(function (extracted) {
+      if (gen !== mobileGen || !extracted) return;
+      wash.style.setProperty('--wash-a', extracted[0]);
+      wash.style.setProperty('--wash-b', extracted[1]);
+    });
+  }
+  function mobileUpdateInfo(idx) {
+    var p = PROJECTS[idx];
+    function apply() {
+      infoNum.textContent = String(idx + 1).padStart(2, '0') + ' / ' + String(count).padStart(2, '0');
+      infoTitle.textContent = p.title;
+      infoCategory.textContent = p.category;
+      infoYear.textContent = p.year;
+    }
+    if (reducedMotion) { apply(); return; }
+    info.getAnimations().forEach(function (a) { a.cancel(); }); // supersede any in-flight swap
+    info.animate(
+      [{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(10px)' }],
+      { duration: 200, easing: 'cubic-bezier(.6,0,1,1)', fill: 'forwards' }
+    ).onfinish = function () {
+      apply();
+      info.animate(
+        [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'translateY(0)' }],
+        { duration: 340, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'forwards' }
+      );
+    };
+  }
+
+  // ---- the one card in the DOM -- built once, its contents (cover image, tone gradient, play
+  // icon) are swapped in place on navigation rather than the card element itself being replaced,
+  // so there is exactly one .carousel-card for this tier's entire lifetime, never more. ----
+  var size = cardSize();
+  var card = document.createElement('div');
+  card.className = 'carousel-card is-active';
+  card.style.width = size.width + 'px';
+  card.style.height = size.height + 'px';
+  card.style.transform = 'translate(-50%,-50%)';
+  card.setAttribute('role', 'button');
+  var inner = document.createElement('div');
+  inner.className = 'carousel-card__inner';
+  // ---- backdrop fill: the card is a fixed landscape frame (see cardSize() above), but a
+  // project's own designated main photo is very often a portrait poster/book-cover (roughly
+  // 0.7:1) -- object-fit:contain on coverImg below never crops or substitutes that photo (the
+  // whole point: show the exact designated main photo, untouched), but on its own that left big
+  // bare tone-gradient bars down both sides of every portrait photo, which read as "broken/not
+  // really showing" rather than as a deliberately letterboxed frame. This element sits behind
+  // coverImg, shows the *same* src the sharp image does, scaled up and blurred to fill the whole
+  // frame edge-to-edge (the same "blurred backdrop" treatment Apple Music/Spotify use for
+  // non-matching album art) -- so the frame always looks fully filled and intentional, while the
+  // real photo on top stays complete and uncropped. Mobile/tablet only: its own class, its own
+  // CSS (see css/style.css), never touched by the desktop ring's buildProjectCard(), which has no
+  // equivalent element.
+  var coverBg = document.createElement('div');
+  coverBg.className = 'carousel-card__cover-bg';
+  var coverImg = document.createElement('img');
+  coverImg.className = 'carousel-card__cover';
+  coverImg.draggable = false;
+  coverImg.decoding = 'async';
+  coverImg.style.opacity = '0'; // starts hidden -- see commit(), only ever made visible once loaded
+  coverImg.style.transition = 'opacity .25s ease';
+  var playIcon = document.createElement('div');
+  playIcon.className = 'carousel-card__play';
+  playIcon.innerHTML = '<span>▶</span>';
+  // NOT the `hidden` attribute: .carousel-card__play's own CSS sets `display:flex`
+  // unconditionally (see css/style.css), an author-stylesheet rule -- and author rules always
+  // beat the browser's built-in `[hidden]{display:none}` user-agent rule regardless of selector
+  // specificity, so `playIcon.hidden = true` silently does nothing and the icon stayed visible on
+  // every card, video or not. An inline `display` style outranks any class-level rule from any
+  // stylesheet, so it's what actually hides/shows this element; render() below is the only place
+  // that ever flips it, strictly from project.type, never merely because a card exists.
+  playIcon.style.display = 'none';
+  inner.appendChild(coverBg);
+  inner.appendChild(coverImg);
+  inner.appendChild(playIcon);
+  card.appendChild(inner);
+  stage.appendChild(card);
+
+  window.addEventListener('resize', function () {
+    var s = cardSize();
+    card.style.width = s.width + 'px';
+    card.style.height = s.height + 'px';
+  });
+
+  // ---- state ----
+  var activeIndex = 0;
+  var mobileGen = 0;               // bumped on every navigation -- see this function's own header
+  var preload = null;              // { index, img } -- at most ONE speculative off-DOM preload
+
+  function coverSrcFor(project) {
+    return project.coverMobile || project.cover || project.coverFallback || null;
+  }
+
+  // speculative, bounded (exactly one slot) preload of a single neighbor -- never attached to the
+  // DOM, so it costs a decode but no additional compositing layer; replacing `preload` with a new
+  // object (or null) drops the only reference to whatever was there before, making its Image (and
+  // decoded bitmap) eligible for garbage collection immediately, not just eventually.
+  function preloadNeighbor(index) {
+    if (preload && preload.index === index) return;
+    var src = coverSrcFor(PROJECTS[index]);
+    if (!src) { preload = null; return; }
+    var img = new Image();
+    img.decoding = 'async';
+    img.src = src;
+    preload = { index: index, img: img };
+  }
+
+  // ---- render the active project: info panel updates immediately (cheap, no loading dependency,
+  // same instant-update-then-settle feel updateInfo()/updateWash() already give the desktop ring);
+  // the cover image only ever becomes visible once it has actually finished loading -- never a
+  // bare colored square presented as if it were the real photo. gen is captured at call time and
+  // re-checked before every DOM write below, so a load that resolves after the visitor has already
+  // navigated further (of which there can be any number, arbitrarily fast) is silently dropped. ----
+  function render(index, dir) {
+    mobileGen++;
+    var gen = mobileGen;
+    activeIndex = index;
+    var project = PROJECTS[index];
+
+    mobileUpdateWash(index);
+    mobileUpdateInfo(index);
+    applyTone(inner, index);
+    card.setAttribute('aria-label', (project.type === 'video' ? 'Watch ' : 'Enter ') + project.title);
+    // hide the previous project's photo the instant navigation starts -- the tone gradient
+    // (just applied above) is this tier's own established "no photo yet" treatment (see
+    // buildProjectCard()'s own comment on the desktop ring for the same convention), not a blank
+    // or broken-looking state; avoids a stale photo remaining under a new title.
+    coverImg.style.opacity = '0';
+    coverImg.removeAttribute('src');
+    coverBg.style.opacity = '0';
+    coverBg.style.backgroundImage = '';
+    playIcon.style.display = 'none';
+
+    var src = coverSrcFor(project);
+    if (!src) {
+      // every project currently has a coverMobile/cover/coverFallback (see js/project-data.js),
+      // so this branch is only ever reached by a future project added without one -- the tone
+      // gradient above is the entire card then, exactly like the desktop ring's own equivalent
+      // branch.
+    } else {
+      function commit(loadedSrc) {
+        if (gen !== mobileGen) return; // stale -- a newer navigation has already superseded this
+        coverImg.src = loadedSrc;
+        coverImg.style.opacity = '1';
+        // same src, as a blurred cover-fit backdrop -- see coverBg's own creation comment above
+        coverBg.style.backgroundImage = 'url("' + loadedSrc.replace(/"/g, '\\"') + '")';
+        coverBg.style.opacity = '1';
+        // strictly from the project's own data (type === 'video'), never from the mere existence
+        // of this card -- see playIcon's own creation comment for why `.hidden` can't be used here.
+        if (project.type === 'video') playIcon.style.display = 'flex';
+      }
+      var cached = preload && preload.index === index ? preload.img : null;
+      if (cached && cached.complete && cached.naturalWidth) {
+        commit(cached.src);
+      } else {
+        // onload is the one native event guaranteed to fire once the browser actually finishes
+        // fetching+decoding the image, independent of img.decode()'s own outcome -- attached
+        // unconditionally, first, as the real safety net. img.decode() (where supported) is only
+        // ever an *optimization* layered on top: it resolves once the image is fully decoded and
+        // safe to paint without a decode-triggered stall on first draw, so commit() is called
+        // slightly earlier/smoother when it succeeds. commit() itself is idempotent (just
+        // re-applies the same src/opacity), so onload firing after decode() already committed is
+        // harmless. Never called on more than one image at a time here: this is the one and only
+        // decode this function ever starts outside of preloadNeighbor()'s own single speculative
+        // slot.
+        //
+        // Previously decode() was the ONLY trigger, with just a synchronous fallback check
+        // (img.complete/naturalWidth) in its .catch() -- but some mobile browsers reject decode()
+        // for reasons unrelated to whether the image actually finished loading (a real, confirmed
+        // cause of a project's main photo appearing to silently vanish: the asset loaded
+        // correctly, decode() rejected anyway, and nothing else was ever listening). A larger
+        // image (more pixels to decode, independent of file size) can also still be genuinely
+        // mid-fetch at the exact instant decode() rejects, so that synchronous check alone could
+        // miss a load that completes moments later -- with no listener left to catch it, the card
+        // was stuck on the tone gradient forever. onload here fixes both cases at once.
+        var img = new Image();
+        img.decoding = 'async';
+        img.onload = function () { commit(img.src); };
+        img.onerror = function () {}; // genuine load failure -- stays on the tone-gradient placeholder
+        img.src = src;
+        if (img.decode) {
+          img.decode().then(function () { commit(img.src); }).catch(function () {});
+        }
+      }
+    }
+
+    // opportunistically ready the single next card in whichever direction the visitor is actually
+    // moving -- bounded to exactly one slot (preloadNeighbor() replaces, never adds to, `preload`)
+    if (dir) preloadNeighbor(((index + dir) % count + count) % count);
+  }
+
+  function step(dir) {
+    render(((activeIndex + dir) % count + count) % count, dir);
+  }
+
+  // ---- tap the card to enter the project; a lighter version of the desktop ring's own
+  // flyIntoProject() -- this tier already navigates to a real standalone page (see below), so
+  // there is no in-page dialog/clone-and-grow transition to reproduce here. ----
+  card.addEventListener('click', function () {
+    if (dragMoved) return;
+    window.location.href = 'project/' + PROJECTS[activeIndex].id + '/';
+  });
+  card.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      window.location.href = 'project/' + PROJECTS[activeIndex].id + '/';
+    } else if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
+  });
+  card.tabIndex = 0;
+
+  // ---- swipe: a single step per gesture (never a continuous drag-follows-finger angle -- there
+  // is no ring here to rotate), same threshold-then-commit shape as the desktop ring's own wheel
+  // gesture. Pure pointer tracking, no rAF loop. ----
+  var dragging = false, dragMoved = false, dragStartX = 0;
+  var SWIPE_THRESHOLD = 40;
+  viewport.addEventListener('pointerdown', function (e) {
+    dragging = true; dragMoved = false; dragStartX = e.clientX;
+  });
+  viewport.addEventListener('pointermove', function (e) {
+    if (!dragging) return;
+    if (Math.abs(e.clientX - dragStartX) > 10) dragMoved = true;
+  });
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    if (!dragMoved) return;
+    var dx = e.clientX - dragStartX;
+    if (Math.abs(dx) >= SWIPE_THRESHOLD) step(dx < 0 ? 1 : -1);
+  }
+  viewport.addEventListener('pointerup', endDrag);
+  viewport.addEventListener('pointercancel', function () { dragging = false; });
+
+  // mobile/tablet's own initial project -- LINKA, not index 0 (who-i-am, a video project): a
+  // first-load autoplaying/loading video is exactly what this tier's whole static-cover
+  // architecture (see PROJECT_MEDIA_MOBILE_TIER above) exists to avoid. Looked up by id rather
+  // than a hardcoded index so it keeps pointing at LINKA even if PROJECTS is reordered; falls
+  // back to 0 only if 'linka' is ever removed from PROJECTS entirely. Desktop's own ring (below)
+  // is untouched and still starts at index 0.
+  var initialIndex = PROJECTS.findIndex(function (p) { return p.id === 'linka'; });
+  render(initialIndex >= 0 ? initialIndex : 0, 0);
+}
+
 // ---- Work: 3D interactive carousel (drag/wheel/keys to rotate; click flies into the project
 // page above). Entirely driven by PROJECTS -- adding a project never touches this code. This
 // ring only ever shows the 8 project covers -- it is the homepage level, not a container for
 // case-study content. Motion signature (easeInOutCubic tween, damped/capped inertia, a small
 // scale "grab tension" while dragging, idle auto-drift, no bounce/elastic anywhere) is adapted
 // from studying apechain.com's actual drag/carousel code -- see chat for the writeup. Deferred
-// via afterLoader() -- building the ring (on desktop, including every video-preview <video>
-// element the projects with `videoPreview` set create; see WORK_MOBILE_TIER below for why
-// mobile/tablet never creates one at all) is real DOM/decode work that shouldn't compete with
-// the loader for frames, and #work is well below the fold on first paint anyway. ----
+// via afterLoader() -- building the ring, including every video-preview <video> element the
+// projects with `videoPreview` set create, is real DOM/decode work that shouldn't compete with
+// the loader for frames, and #work is well below the fold on first paint anyway. Desktop only --
+// see buildMobileWork() and the WORK_MOBILE_TIER branch just below for the entirely separate
+// mobile/tablet implementation. ----
 afterLoader(function () {
   var root = document.getElementById('work-carousel');
   if (!root) return;
 
   // reads js/project-data.js's own tier flag (see that file's own comment on
-  // PROJECT_MEDIA_MOBILE_TIER) -- on this tier, buildProjectCard() below never instantiates a
-  // project's real PDF render or video preview; only a plain static <img> (cover/coverFallback)
-  // or, absent either, the existing tone-gradient placeholder. flyIntoProject() further down
-  // reads this same flag to navigate to the project's own page instead of opening the in-page
-  // dialog. Desktop is completely unaffected by either.
+  // PROJECT_MEDIA_MOBILE_TIER).
   var WORK_MOBILE_TIER = PROJECT_MEDIA_MOBILE_TIER;
+
+  if (WORK_MOBILE_TIER) {
+    // entirely separate implementation -- see buildMobileWork()'s own header comment for why.
+    // Nothing below this point (the full 3D ring, its drag/wheel/keyboard handling, autoplay, and
+    // backfill machinery) is reachable on this tier, or safe for the single-card DOM
+    // buildMobileWork() builds instead.
+    buildMobileWork(root);
+    return;
+  }
 
   // ---- work background: fixed full-viewport wash + drifting particles, visible only while
   // the Work section is on screen. Scoped separately from the site-wide #ambient-bg. ----
@@ -1222,14 +1679,15 @@ afterLoader(function () {
   //
   //   1) ensureNeighborhoodLoaded(idx) -- called once for index 0 right after the ring is built,
   //      and again every time syncActiveIndex() (further down) detects the active card has
-  //      changed, whether that's from a drag, wheel, keys, or the idle autoplay drift. It starts
+  //      changed, whether that's from a drag, wheel, or the arrow keys. It starts
   //      exactly the active card plus its two immediate ring neighbors -- the only cards that can
   //      plausibly be on screen or about to be -- and is a no-op for anything already started.
-  //      A first pass here only ever primed index 0 once, at build time; that missed the very
-  //      common case where autoplay (a flat 5s idle timer, see IDLE_DELAY below) or a drag has
-  //      already moved the front card on by the time a visitor actually scrolls down to Work,
-  //      which a ~1700px hero scroll track alone is often enough time for -- leaving whatever
-  //      card ended up centered still unprimed.
+  //      A first pass here only ever primed index 0 once, at build time; that missed the case
+  //      where a drag/wheel/arrow step has already moved the front card on by the time a visitor
+  //      actually scrolls down to Work, which a ~1700px hero scroll track alone is often enough
+  //      time for -- leaving whatever card ended up centered still unprimed. (There is no idle
+  //      autoplay any more -- the ring only ever moves on a direct user action -- but the same
+  //      race exists for any of those, so the fix still applies.)
   //   2) queueBackfillCover(record) -- everything NOT in that immediate neighborhood. A first pass
   //      here queued every other card's cover strictly in PROJECTS array order, one at a time --
   //      but that meant a visitor who rotated two or three cards in either direction could land on
@@ -1348,16 +1806,11 @@ afterLoader(function () {
     // builds the DOM only -- does NOT start any network/decode work itself. `startCover`, handed
     // back to the caller, is what actually kicks off the fetch/render/buffer; buildRing() decides
     // if/when to call it (see ensureNeighborhoodLoaded()/queueBackfillCover() above), so this
-    // function stays agnostic to whether it's building the visible card or a distant one.
+    // function stays agnostic to whether it's building the visible card or a distant one. Desktop
+    // only -- see buildMobileWork() for the entirely separate mobile/tablet implementation, which
+    // never calls this function at all.
     var startCover = null;
-    // mobile/tablet: the card's cover is ALWAYS a plain static <img> (project.cover, or the
-    // lightweight project.coverFallback plate -- see js/project-data.js's own comment on both),
-    // never a live pdf.js render and never a <video> element -- there is nothing here for
-    // startCover() to instantiate beyond an <img src>, so a project with neither simply keeps the
-    // tone-gradient placeholder already applied to `inner` above, permanently, with no image at
-    // all. This is the architecture change itself: on this tier buildProjectCard() cannot reach
-    // project.pdf/project.videoPreview/project.video no matter what runs it or when.
-    var staticCoverSrc = WORK_MOBILE_TIER ? (project.cover || project.coverFallback || null) : project.cover;
+    var staticCoverSrc = project.cover;
 
     if (staticCoverSrc) {
       var img = document.createElement('img');
@@ -1374,15 +1827,10 @@ afterLoader(function () {
           img.src = staticCoverSrc;
         });
       };
-    } else if (WORK_MOBILE_TIER) {
-      // no static cover/coverFallback exists for this project (kanye-west, breaking-the-grid) --
-      // the tone-gradient letterbox from `inner`'s own applyTone() above is the entire card;
-      // startCover stays null (a no-op) rather than reaching for the PDF this tier disallows.
     } else if (project.pdf) {
       // page 1 of the PDF, rendered live -- the tone gradient already applied above shows
       // through as a letterbox exactly like a real `cover` image (object-fit:contain) until
       // (and if) the render resolves, and stays as the letterbox regardless once it does.
-      // Desktop only -- see staticCoverSrc/WORK_MOBILE_TIER above.
       var pdfCoverImg = document.createElement('img');
       pdfCoverImg.className = 'carousel-card__cover';
       pdfCoverImg.alt = project.title + ' — cover';
@@ -1396,9 +1844,6 @@ afterLoader(function () {
       // paused on its first frame by default -- no `autoplay`/`loop`-while-idle here, playback
       // is only ever started from the card's mouseenter handler below, while this card is the
       // active/centered one; loop only takes effect once .play() actually runs on hover.
-      // Desktop only (mouseenter never fires from touch anyway) -- see
-      // staticCoverSrc/WORK_MOBILE_TIER above; this <video> element, and the preload it starts,
-      // never exists on mobile/tablet at all.
       var previewVid = document.createElement('video');
       previewVid.className = 'carousel-card__preview';
       previewVid.muted = true;
@@ -1419,12 +1864,8 @@ afterLoader(function () {
     }
 
     // `videoPreview` projects communicate "this is a video" through the hover-playing preview
-    // itself (see requirements), so they deliberately skip the static play-icon overlay other
-    // video projects (reel, launch-film) show -- except on mobile/tablet, where that hover
-    // preview never exists (see above) and this play icon is what marks the card as a video
-    // instead, over its static cover/coverFallback image (or the bare gradient, for the two
-    // projects with neither).
-    if (project.type === 'video' && (!project.videoPreview || WORK_MOBILE_TIER)) {
+    // itself, so they deliberately skip the static play-icon overlay other video projects show.
+    if (project.type === 'video' && !project.videoPreview) {
       var play = document.createElement('div');
       play.className = 'carousel-card__play';
       play.innerHTML = '<span>▶</span>';
@@ -1433,6 +1874,25 @@ afterLoader(function () {
 
     card.appendChild(inner);
     return { card: card, startCover: startCover };
+  }
+
+  // hover preview for a video project that also has a static `cover` (see ev-tanitim-videosu in
+  // js/project-data.js): nothing video-shaped exists in its card until the visitor actually hovers
+  // it while active -- no element, no src, no buffering from the backfill queue. Created once, then
+  // reused by the same mouseenter/mouseleave handlers as every other videoPreview card. It sits
+  // over the cover at opacity 0 and only fades in once real frames are playing, so the cover never
+  // flashes to black/blank while the clip is still fetching.
+  function createDeferredPreview(inner, project) {
+    var vid = document.createElement('video');
+    vid.className = 'carousel-card__preview carousel-card__preview--deferred';
+    vid.muted = true;
+    vid.loop = true;
+    vid.playsInline = true;
+    vid.preload = 'auto';
+    vid.addEventListener('playing', function () { vid.classList.add('is-playing'); });
+    vid.src = project.videoPreview;
+    inner.appendChild(vid);
+    return vid;
   }
 
 
@@ -1514,6 +1974,20 @@ afterLoader(function () {
     rotateToIndex(nearestIndex());
   }
 
+  // ---- one manual step left/right -- the single mechanism behind the wheel gesture and the
+  // arrow keys, so both feel identical and never drift out of sync with each other. `count` cards
+  // means there's no real "first"/"last" card to special-case -- index arithmetic simply wraps
+  // modulo count in both directions, i.e. the ring's own existing looping behavior. Purely a
+  // rotation: it calls rotateToIndex(), the exact same tween ensureNeighborhoodLoaded() already
+  // listens to via syncActiveIndex() (see render() below) to prime whatever card just became
+  // active. ----
+  function stepCarousel(dir) {
+    var count = cards.length;
+    if (!count) return;
+    hint.classList.add('hide');
+    rotateToIndex(((nearestIndex() + dir) % count + count) % count);
+  }
+
   function startInertia() {
     stopAnim();
     function step() {
@@ -1576,8 +2050,8 @@ afterLoader(function () {
 
   // ---- single source of truth for "which project is active": checked every render() call, so
   // it tracks whichever card is nearest the front in real time no matter how it got there --
-  // drag, wheel, keyboard or autoplay -- exactly like the wash/info updating live in the
-  // reference instead of waiting for a click or a settle. ----
+  // drag, wheel, or keyboard -- exactly like the wash/info updating live in the reference instead
+  // of waiting for a click or a settle. ----
   var displayedIndex = -1;
   function syncActiveIndex() {
     var idx = nearestIndex();
@@ -1619,6 +2093,8 @@ afterLoader(function () {
         // their paused first frame even if the pointer happens to pass over them
         if (project.videoPreview && el.classList.contains('is-active')) {
           var pv = inner.querySelector('.carousel-card__preview');
+          // cover-first video projects have no preview element until this very first hover
+          if (!pv && project.cover) pv = createDeferredPreview(inner, project);
           if (pv) { pv.currentTime = 0; pv.play().catch(function () {}); }
         }
       });
@@ -1626,7 +2102,7 @@ afterLoader(function () {
         inner.classList.remove('is-hovered');
         if (project.videoPreview) {
           var pv = inner.querySelector('.carousel-card__preview');
-          if (pv) { pv.pause(); pv.currentTime = 0; }
+          if (pv) { pv.pause(); pv.currentTime = 0; pv.classList.remove('is-playing'); }
         }
       });
 
@@ -1640,6 +2116,7 @@ afterLoader(function () {
     // no-op by the time it's actually its turn if ensureNeighborhoodLoaded() already reached that
     // card first via rotation -- see queueBackfillCover()'s own comment above for why this is safe
     // to queue for everyone unconditionally rather than trying to pre-exclude the neighborhood.
+    //
     cards.forEach(function (record) { queueBackfillCover(record); });
 
     render();
@@ -1654,17 +2131,7 @@ afterLoader(function () {
     var startRect = media.getBoundingClientRect();
 
     function reveal() {
-      // mobile/tablet: a real, separate document (project/<id>/index.html) rather than the
-      // in-page dialog -- the whole point of the mobile architecture is that the browser only
-      // ever holds one project's heavy media at a time, and a genuine navigation guarantees that
-      // trivially (the homepage's own document, and everything on it, unloads) in a way an
-      // in-page dialog close never fully can on a memory-constrained device. Desktop keeps the
-      // existing in-page dialog unchanged -- see openProjectPage() above.
-      if (WORK_MOBILE_TIER) {
-        window.location.href = 'project/' + project.id + '/';
-      } else {
-        openProjectPage(project, index, cardEl);
-      }
+      openProjectPage(project, index, cardEl);
     }
 
     if (reducedMotion) { reveal(); return; }
@@ -1793,11 +2260,8 @@ afterLoader(function () {
     var delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
     wheelAccum += delta;
     if (Math.abs(wheelAccum) < WHEEL_STEP_THRESHOLD) return;
-    var dir = wheelAccum > 0 ? 1 : -1;
     wheelGestureTriggered = true;
-    var count = cards.length;
-    var nextIdx = ((nearestIndex() + dir) % count + count) % count;
-    rotateToIndex(nextIdx);
+    stepCarousel(wheelAccum > 0 ? 1 : -1);
   }, { passive: false });
 
   // ---- click / keyboard activation ----
@@ -1812,10 +2276,7 @@ afterLoader(function () {
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
       e.preventDefault();
       markInteraction();
-      var dir = e.key === 'ArrowRight' ? 1 : -1;
-      var count = cards.length;
-      var nextIdx = ((nearestIndex() + dir) % count + count) % count;
-      rotateToIndex(nextIdx);
+      stepCarousel(e.key === 'ArrowRight' ? 1 : -1);
       return;
     }
     if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -1908,11 +2369,11 @@ afterLoader(function () {
   // perf: this loop used to call requestAnimationFrame(bgLoop) unconditionally forever, so it kept
   // writing 26 particles' transform/opacity plus the carousel's own --tiltX/--tiltY every frame
   // long after #work (and the carousel it tilts) had scrolled out of view -- pure wasted work for
-  // the rest of the page's lifetime, worse on weaker mobile CPUs. It now only runs while #work is
-  // actually intersecting the viewport, using the same IntersectionObserver already driving the
-  // wash/particle opacity fade below (not a second, competing visibility mechanism) -- the loop
-  // stops scheduling itself the moment #work leaves view and the observer restarts it the moment
-  // #work comes back, with zero change to what it draws or how it looks while running.
+  // the rest of the page's lifetime. It now only runs while #work is actually intersecting the
+  // viewport, using the same IntersectionObserver already driving the wash/particle opacity fade
+  // below (not a second, competing visibility mechanism) -- the loop stops scheduling itself the
+  // moment #work leaves view and the observer restarts it the moment #work comes back, with zero
+  // change to what it draws or how it looks while running.
   var workBgInView = false;
   var workBgRunning = false;
   if (!reducedMotion) {

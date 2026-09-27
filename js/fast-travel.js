@@ -33,6 +33,17 @@ export function initFastTravel() {
   var items = Array.prototype.slice.call(wheel.querySelectorAll('.fast-travel__item'));
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var hoverCapable = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  // true wherever #identity/#about-me/#skills/#availability's own scroll-tracks are collapsed to
+  // a plain 100svh instead of their tall scroll-scrub runway -- reduced motion (pre-existing) and,
+  // as of this pass, phone/tablet too (see each track's own css/style.css comment: their reveal
+  // engines -- js/identity.js/js/scenes.js -- never mount on either, so content is already fully
+  // built and visible the instant the section is on screen, with no "hold" point to land inside
+  // any more). TRACK_TARGETS' hardcoded t*range math below assumes the OLD tall track and would
+  // land well past the now much-shorter section on either tier if left unchecked -- same coarse-
+  // pointer + smaller-of-width/height convention as this file's own mobile/tablet tap-vs-hover
+  // check just above. Desktop (without reduced motion) is unaffected either way.
+  var tracksCollapsed = reducedMotion ||
+    (!hoverCapable && Math.min(window.innerWidth, window.innerHeight) <= 1024);
 
   // ---- Signature-ease scroll: a small cubic-bezier solver (Newton-Raphson on the curve's own x(t),
   // same technique browsers use internally) so the scroll uses the site's *exact* signature-ease
@@ -82,7 +93,10 @@ export function initFastTravel() {
 
   function resolveTargetY(hash) {
     var track = TRACK_TARGETS[hash];
-    if (track) {
+    // tracksCollapsed: the track is a plain 100svh now, already fully built/visible from the
+    // moment it's on screen -- landing at its own top (t=0, i.e. skip the t*range offset
+    // entirely) is correct here, not a fallback; see this variable's own comment above.
+    if (track && !tracksCollapsed) {
       var trackEl = document.getElementById(track.trackId);
       if (trackEl) {
         var trackTop = trackEl.getBoundingClientRect().top + window.scrollY;

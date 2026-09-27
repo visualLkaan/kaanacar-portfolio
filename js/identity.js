@@ -24,6 +24,9 @@
 // lines are then left exactly as they are in the markup -- plain, fully visible, unblurred,
 // untransformed text -- which is already the correct "show everything immediately" reduced-motion
 // state with no extra CSS override needed (see css/style.css's IDENTITY block).
+//
+// Phone/tablet: same early return, same reasoning -- see this function's own comment on its
+// mobile-tier check.
 
 export function initIdentity() {
   var track = document.getElementById('identity-new-track');
@@ -38,6 +41,14 @@ export function initIdentity() {
 
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reducedMotion) return;
+  // phone/tablet: same early return, same reasoning as reducedMotion above -- the mobile page is
+  // a normal, natively-scrolling document with no scroll-tied reveal at all, not just a cheaper
+  // one. Same coarse-pointer + smaller-of-width/height convention as js/scenes.js's own mobile
+  // check (which this module deliberately does not share an engine with -- see this file's own
+  // header comment -- but the tier test itself is the same one used throughout the codebase).
+  var coarse = !window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  var tierWidth = coarse ? Math.min(window.innerWidth, window.innerHeight) : window.innerWidth;
+  if (tierWidth <= 1024) return;
 
   function clamp(v, a, b) { return Math.min(Math.max(v, a), b); }
   function lerp(a, b, t) { return a + (b - a) * t; }

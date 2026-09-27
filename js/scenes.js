@@ -13,10 +13,24 @@
 // Reduced motion: this whole module is a no-op (see the early return below). Every track collapses
 // to 100svh and every line/word defaults to fully visible via css/style.css's own
 // `@media (prefers-reduced-motion: reduce)` rules, matching how the hero scene already opts out.
+//
+// Phone/tablet: this module is a no-op there too, for the same reason and via the same CSS rules
+// (each one extended with an `(pointer:coarse) and (max-width/max-height:1024px)` alternative --
+// see e.g. .about-me-scroll-track's own comment in css/style.css). The mobile page is meant to be
+// a normal, natively-scrolling document: sections simply sit in their own normal flow, already
+// fully built, with nothing waiting on a scroll-tied reveal and no scroll-progress handler running
+// at all -- not paused, not idled, never mounted.
 
 export function initScenes() {
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reducedMotion) return;
+  // same coarse-pointer + smaller-of-width/height convention used throughout js/script.js (e.g.
+  // its own Hero background/Prism/ambient-blob tier checks) -- a landscape tablet can report a
+  // width past 1024 despite being the same device as its own portrait orientation. Desktop
+  // (fine pointer) always uses raw innerWidth, unaffected.
+  var scenesCoarse = !window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  var scenesTierWidth = scenesCoarse ? Math.min(window.innerWidth, window.innerHeight) : window.innerWidth;
+  if (scenesTierWidth <= 1024) return;
 
   function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
   function easeInCubic(t) { return t * t * t; }
@@ -202,6 +216,8 @@ export function initScenes() {
   var SCENE_LERP = 0.12; // calmer than the Blender scrub's 0.4 -- this is a reading-paced scene,
                           // not a scrub, closer to the hero's own 0.09 settle
 
+  // desktop only from here on -- the mobile/tablet early return above means everything below
+  // never executes on that tier at all.
   function updateTargets() {
     for (var i = 0; i < scenes.length; i++) {
       var scene = scenes[i];

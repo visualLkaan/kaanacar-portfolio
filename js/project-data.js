@@ -15,11 +15,23 @@
 // rendering (pdf.js) or buffering a video -- both explicitly disallowed on the mobile/tablet
 // homepage (see PROJECT_MEDIA_MOBILE_TIER below and buildProjectCard() in js/script.js). It is
 // never used on desktop and never used on the project detail page, where the real PDF/video
-// still loads exactly as before. Two pdf-only projects (kanye-west, breaking-the-grid) have no
-// existing static image asset to reuse for this, so they intentionally have no `coverFallback`
-// and fall back further, to the plain tone-gradient card -- see js/script.js's buildProjectCard()
-// for that path; their title/category/year still surface via the carousel's own info panel the
-// moment either becomes the active card, so this isn't a silently unlabeled card.
+// still loads exactly as before.
+//
+// Every project's own designated main photo is a plain presentation title card (project name,
+// category, contact line) -- distinct from that project's real finished artwork/deliverable, and
+// distinct from the `pdf`/`video` field below (the real project content, rendered live for
+// desktop and the project detail page, exactly as before). For every pdf-backed image project
+// here, `coverFallback`/`coverMobile` is a static JPG preview of that title card's own PDF page 1
+// -- rasterized once (via Windows' own PdfDocument API, offline, no browser) and committed as a
+// plain image, since an <img> element cannot render a PDF in any browser. A prior pass had
+// several of these (kanye-west, breaking-the-grid, messi, scarface, white-noise, didot-specimen,
+// unknown-place) pointed at the finished artwork instead -- a real, confirmed bug, not a design
+// choice -- so the mobile card showed the project's own content instead of its title card; each
+// one's `coverFallback`/`coverMobile` was corrected to render from the actual designated
+// main-photo PDF, and the finished artwork itself was kept, under its own filename, as that
+// project's `extraImages` gallery plate (the real content, unchanged for desktop/the detail
+// page). The designated main-photo PDF itself is never modified by this -- always the untouched,
+// authoritative source; the JPG is strictly a technically-necessary preview of it.
 var PROJECTS = [
   // `videoPreview` opts a video project into a hover-to-play carousel preview (a muted, looping
   // <video> in place of the static cover) instead of the default tone-gradient-plus-play-icon
@@ -48,21 +60,55 @@ var PROJECTS = [
   // cover is desktop only (and the detail page, any tier) -- see `coverFallback` above.
   { id: 'white-noise',  title: 'WHITE NOISE',             category: 'Book Cover',        year: '2026', size: 'md', type: 'image',
     pdf: 'assets/projects/white-noise/white-noise.pdf',
+    // bookcover-mockup.jpg/-mobile.jpg: the designated main-photo PDF's own page 1 (a plain
+    // "WHITE NOISE -- Bookcover" title card) -- cover/carousel-card use only, both tiers. Was
+    // previously, incorrectly, the real 3D mockup render below (same class of copy-paste mistake
+    // found in kanye-west/messi/scarface -- the cover pointed at the finished artwork instead of
+    // the designated main-photo PDF); fixed by re-rendering fresh from white-noise.pdf specifically
+    // (confirmed byte-identical to reference2's own "main photo book cover.pdf").
     coverFallback: 'assets/projects/white-noise/bookcover-mockup.jpg',
+    // coverMobile: a 1400px-longest-edge sibling of the same title card, mobile/tablet
+    // carousel-card use only -- see this field's own header comment further down (near
+    // WORK_MOBILE_TIER's own definition in js/script.js).
+    coverMobile: 'assets/projects/white-noise/bookcover-mockup-mobile.jpg',
+    // white-noise-mockup.jpg: the actual project -- the real 3D book-cover mockup render, full
+    // resolution (5000x3240, ~4.8MB). Detail-page gallery plate only, shared by desktop and
+    // mobile alike, same as every other project's extraImages here -- never the cover.
     extraImages: [
-      'assets/projects/white-noise/bookcover-mockup.jpg'
+      'assets/projects/white-noise/white-noise-mockup.jpg'
     ] },
   { id: 'kanye-west',   title: 'KANYE WEST',              category: 'Editorial Design',  year: '2026', size: 'md', type: 'image',
-    pdf: 'assets/projects/kanye-west/kanye-west.pdf' }, // no coverFallback -- see file header
+    pdf: 'assets/projects/kanye-west/kanye-west.pdf', // the real project content -- untouched
+    // coverFallback/coverMobile: mobile-card-only static preview of the designated main-photo
+    // PDF's page 1 -- see file header for why this exists. Not the project content above.
+    coverFallback: 'assets/projects/kanye-west/kanye-west-cover.jpg',
+    coverMobile: 'assets/projects/kanye-west/kanye-west-cover-mobile.jpg' },
   { id: 'breaking-the-grid', title: 'BREAKING THE GRID',  category: 'Swiss Style',       year: '2026', size: 'md', type: 'image',
-    pdf: 'assets/projects/breaking-the-grid/breaking-the-grid.pdf' }, // no coverFallback -- see file header
+    pdf: 'assets/projects/breaking-the-grid/breaking-the-grid.pdf', // the real project content -- untouched
+    // coverFallback/coverMobile: mobile-card-only static preview of the designated main-photo
+    // PDF's page 1 -- see file header for why this exists. Not the project content above.
+    coverFallback: 'assets/projects/breaking-the-grid/breaking-the-grid-cover.jpg',
+    coverMobile: 'assets/projects/breaking-the-grid/breaking-the-grid-cover-mobile.jpg' },
   { id: 'didot-specimen', title: 'DIDOT TYPE SPECIMEN',  category: 'Typography',        year: '2026', size: 'md', type: 'image',
     pdf: 'assets/projects/didot-specimen/didot-specimen.pdf',
+    // didot-type-specimen.jpg/-mobile.jpg: the designated main-photo PDF's own page 1 (a plain
+    // "DIDOT SPECIMEN -- Typespecimen" title card) -- cover/carousel-card use only, both tiers.
+    // Was previously, incorrectly, the real specimen-poster render below (same class of mistake
+    // found in kanye-west/messi/scarface/white-noise); fixed by re-rendering fresh from
+    // didot-specimen.pdf's own page 1 (confirmed byte-identical to reference5's own
+    // "main photo didot.pdf").
     coverFallback: 'assets/projects/didot-specimen/didot-type-specimen.jpg',
+    // coverMobile: see white-noise's own coverMobile comment above -- same reasoning, same
+    // 1400px-longest-edge sibling, mobile carousel-card only.
+    coverMobile: 'assets/projects/didot-specimen/didot-type-specimen-mobile.jpg',
     pdfPagesInGallery: false, // cover still renders from PDF page 1 as normal; the PDF's other
     // pages (a case-study deck, not gallery plates) are excluded -- gallery is extraImages only
+    // didot-specimen-poster.jpg: the actual project -- the real specimen poster (the alphabet/
+    // numeral spread), full resolution (3508x4961, ~900KB). Detail-page gallery plate only,
+    // shared by desktop and mobile alike, same as every other project's extraImages here -- never
+    // the cover.
     extraImages: [
-      'assets/projects/didot-specimen/didot-type-specimen.jpg'
+      'assets/projects/didot-specimen/didot-specimen-poster.jpg'
     ] },
   // `videoPreview` opts a video project into a hover-to-play carousel preview (a muted, looping
   // <video> in place of the static cover -- see buildProjectCard()/the card hover handlers below)
@@ -80,10 +126,20 @@ var PROJECTS = [
     coverFallback: 'assets/projects/fight-club-titles/cover-fallback.jpg' },
   { id: 'unknown-place', title: 'UNKNOWN PLACE',   category: 'Book Cover',        year: '2026', size: 'md', type: 'image',
     pdf: 'assets/projects/unknown-place/unknown-place.pdf', // cover only (1 page) -- no gallery
-    coverFallback: 'assets/projects/unknown-place/photo1.jpeg',
+    // unknown-place-cover.jpg/-mobile.jpg: the designated main-photo PDF's own page 1 (a plain
+    // "UNKNOWN PLACE" title card) -- cover/carousel-card use only, both tiers. Previously there
+    // was no dedicated cover render at all here: coverFallback instead pointed straight at
+    // photo1.jpeg, the real book-cover art (same class of mistake found in kanye-west/messi/
+    // scarface/white-noise/didot -- the cover ended up as the finished artwork rather than the
+    // designated main-photo PDF); fixed by rendering unknown-place.pdf's own page 1 fresh
+    // (confirmed byte-identical to reference8's own "main photo8 unknown place.pdf") as its own
+    // file, distinct from photo1.jpeg below.
+    coverFallback: 'assets/projects/unknown-place/unknown-place-cover.jpg',
+    coverMobile: 'assets/projects/unknown-place/unknown-place-cover-mobile.jpg',
     pdfPagesInGallery: false, // plates of its own; the gallery comes entirely from autoImages below
-    // `photo1.jpeg` is the first gallery plate; `autoImages` probes `photo2`, `photo3`, ... in the
-    // browser (see loadAutoImageSequence() above) so dropping more `photoN` files into this
+    // `photo1.jpeg` is the actual project -- the real astronaut/UFO book-cover art, and the first
+    // gallery plate; untouched by the cover fix above. `autoImages` probes `photo2`, `photo3`, ...
+    // in the browser (see loadAutoImageSequence() above) so dropping more `photoN` files into this
     // project's folder later adds them to the gallery in filename order with zero code changes
     autoImages: { dir: 'assets/projects/unknown-place/', prefix: 'photo', start: 1,
       extensions: ['jpeg', 'jpg', 'png', 'webp'] } },
@@ -94,17 +150,41 @@ var PROJECTS = [
     coverFallback: 'assets/projects/fight-club-soap/cover-fallback.jpg' },
   { id: 'scarface', title: 'SCARFACE', category: 'Alternative Film Poster', year: '2026', size: 'md', type: 'image',
     pdf: 'assets/projects/scarface/main-photo.pdf', // cover only (1 page) -- no gallery pages of its own
+    // scarface-artwork.jpg/-mobile.jpg: the designated main-photo PDF's own page 1 (a plain
+    // "SCARFACE -- Alternative Film Poster" title card) -- cover/carousel-card use only, both
+    // tiers. Was previously, incorrectly, a render of the real poster artwork below (a copy-paste
+    // mistake from an earlier pass that pointed the cover at the wrong PDF); fixed by re-rendering
+    // fresh from main-photo.pdf specifically.
     coverFallback: 'assets/projects/scarface/scarface-artwork.jpg',
+    // coverMobile: see white-noise's own coverMobile comment above -- same reasoning, same
+    // 1400px-longest-edge sibling, mobile carousel-card only.
+    coverMobile: 'assets/projects/scarface/scarface-artwork-mobile.jpg',
     pdfPagesInGallery: false, // the gallery is the one real artwork plate below, not this cover
+    // scarface-illustration.jpg: the actual project -- the real poster artwork (crossed guns/
+    // cigar on a banknote), a full-resolution render of reference10/scarfaceee.pdf's own page 1.
+    // Detail-page gallery plate only, shared by desktop and mobile alike, same as every other
+    // project's extraImages here -- never the cover.
     extraImages: [
-      'assets/projects/scarface/scarface-artwork.jpg'
+      'assets/projects/scarface/scarface-illustration.jpg'
     ] },
   { id: 'messi', title: 'MESSI', category: 'Illustration', year: '2026', size: 'md', type: 'image',
     pdf: 'assets/projects/messi/main-photo.pdf', // cover only (1 page) -- no gallery pages of its own
+    // messi-artwork.jpg/-mobile.jpg: the designated main-photo PDF's own page 1 (a plain
+    // "MESSI -- Illustration" title card) -- cover/carousel-card use only, both tiers. Was
+    // previously, incorrectly, a render of the real illustration below (a copy-paste mistake from
+    // an earlier pass that pointed the cover at the wrong PDF); fixed by re-rendering fresh from
+    // main-photo.pdf specifically.
     coverFallback: 'assets/projects/messi/messi-artwork.jpg',
+    // coverMobile: see white-noise's own coverMobile comment above -- same reasoning, same
+    // 1400px-longest-edge sibling, mobile carousel-card only.
+    coverMobile: 'assets/projects/messi/messi-artwork-mobile.jpg',
     pdfPagesInGallery: false, // the gallery is the one real artwork plate below, not this cover
+    // messi-illustration.jpg: the actual project -- the real illustration (World Cup trophy /
+    // Ballon d'Or / "10" / GOAT), a full-resolution render of reference11/messi worldcup.pdf's
+    // own page 1. Detail-page gallery plate only, shared by desktop and mobile alike, same as
+    // every other project's extraImages here -- never the cover.
     extraImages: [
-      'assets/projects/messi/messi-artwork.jpg'
+      'assets/projects/messi/messi-illustration.jpg'
     ] },
   // unlike the pdf-only projects above, MOLA has its own dedicated cover photo -- so unlike
   // those, page 1 of its pdf is real gallery content rather than a redundant cover render, and
@@ -112,7 +192,20 @@ var PROJECTS = [
   // loadPdfGalleryItems() below)
   { id: 'mola', title: 'MOLA', category: 'Brand Identity', year: '2026', size: 'md', type: 'image',
     cover: 'assets/projects/mola/main-photo.jpeg',
-    pdf: 'assets/projects/mola/mola-brand-identity.pdf' }
+    pdf: 'assets/projects/mola/mola-brand-identity.pdf' },
+  // the one video project with BOTH a static `cover` and a `videoPreview`: the card shows the
+  // plain cover JPG on every tier (a single frame of the film, extracted offline -- never in the
+  // browser), and on desktop the muted preview <video> is only created on first hover of the
+  // active card (see createDeferredPreview() in js/script.js) instead of being built and buffered
+  // up front like the other videoPreview projects above. Mobile/tablet never touches either
+  // video: its card reads `cover` + the play icon, and so does its palette sample. `video` is a
+  // byte-identical copy of the original "ev tanıtım videosu (2).mp4" (moov-first, so it streams),
+  // loaded only on the project detail page / desktop in-page dialog. The preview is a separate,
+  // silent 960px re-encode (~1.8MB), same split as reach's own preview/full pair.
+  { id: 'ev-tanitim-videosu', title: 'EV TANITIM VIDEOSU', category: 'House Tour Video', year: '2026', size: 'md', type: 'video',
+    cover: 'assets/projects/ev-tanitim-videosu/cover.jpg',
+    videoPreview: 'assets/projects/ev-tanitim-videosu/ev-tanitim-videosu-preview.mp4',
+    video: 'assets/projects/ev-tanitim-videosu/ev-tanitim-videosu.mp4' }
 ];
 
 // ---- resolve every PROJECTS asset path to an absolute URL, once, right here ----
@@ -121,22 +214,33 @@ var PROJECTS = [
 // The exact same string means something different from a page one directory deeper
 // (project/<id>/index.html, see js/project-page.js): a bare relative path there resolves
 // against *that page's own* URL instead of the site root, silently pointing at
-// 'project/<id>/assets/projects/...', which doesn't exist. Rather than have every consumer of
-// PROJECTS (buildProjectCard in js/script.js, ProjectRender, this file's own pdf.js/palette
-// loaders) special-case which page is asking, every path is rewritten to a full absolute URL
-// exactly once, right here, anchored to this script's own resolved location
-// (document.currentScript.src) -- js/project-data.js is always loaded via the same
-// site-root-relative path ('js/project-data.js' from index.html, '../../js/project-data.js'
-// from a project page), so its own resolved URL is a reliable stand-in for "the site root"
-// regardless of what subpath the site happens to be deployed under (a plain domain root, a
-// GitHub Pages project subpath, etc.) and regardless of which page loads this file.
+// 'project/<id>/assets/projects/...', which doesn't exist (this was a real, confirmed bug --
+// videos 404'd from the standalone page). Rather than have every consumer of PROJECTS
+// (buildProjectCard in js/script.js, ProjectRender, this file's own pdf.js/palette loaders)
+// special-case which page is asking, every path is rewritten to a full absolute URL exactly
+// once, right here.
+//
+// The anchor is `window.SITE_ROOT_HREF` -- a plain relative-path string ('./' on index.html,
+// '../../' on every project/<id>/index.html) declared in a tiny inline <script> at the top of
+// each page's own HTML, BEFORE this file loads (see index.html and the project page template).
+// This says explicitly, in the one place a human reads to know a page's own depth, "how many
+// directories deep is this page" -- rather than inferring it indirectly from this script's own
+// tag (document.currentScript.src), which depends on assumptions (script-loading order/type,
+// exactly how the browser exposes `currentScript` mid-execution) that are harder to audit at a
+// glance and easier to get subtly wrong. Resolved against `document.baseURI` (the page's own
+// URL, respecting any <base> tag, none used here), so it works identically whether the site is
+// deployed at a plain domain root or under a subpath (a GitHub Pages project site, etc.) -- only
+// the page's own relative depth ('./' vs '../../') ever needs to be correct, not the deployment
+// root itself. Declared at module scope (not hidden inside the IIFE below) since
+// loadPdfjs()/vendorBase further down anchors the pdf.js vendor path against this same value,
+// rather than computing its own separate, second guess at "where is the site root."
+var SITE_ROOT = new URL(window.SITE_ROOT_HREF || './', document.baseURI).href;
 (function () {
-  var selfUrl = document.currentScript ? document.currentScript.src : '';
-  var SITE_ROOT = new URL('../', selfUrl.replace(/[^/]*$/, '')).href;
   function resolve(p) { return p ? new URL(p, SITE_ROOT).href : p; }
   PROJECTS.forEach(function (project) {
     if (project.cover) project.cover = resolve(project.cover);
     if (project.coverFallback) project.coverFallback = resolve(project.coverFallback);
+    if (project.coverMobile) project.coverMobile = resolve(project.coverMobile);
     if (project.pdf) project.pdf = resolve(project.pdf);
     if (project.video) project.video = resolve(project.video);
     if (project.videoPreview) project.videoPreview = resolve(project.videoPreview);
@@ -202,12 +306,10 @@ var PROJECT_MEDIA_MOBILE_TIER = (function () {
 // This is the actual mechanism behind the "add pages to the PDF and they just appear" project
 // convention -- there is no export/build step and no per-page file naming to keep in sync.
 // Desktop-homepage and project-detail-page only -- see PROJECT_MEDIA_MOBILE_TIER above; nothing
-// in this section is ever called on the mobile/tablet homepage. ----
-// captured synchronously at parse time (this is a classic, non-module script, so
-// import.meta is unavailable) -- gives an absolute base for the vendor paths below
-// regardless of what page/path this script is served from
-var scriptUrl = document.currentScript ? document.currentScript.src : '';
-var vendorBase = scriptUrl.replace(/[^/]*$/, '../assets/vendor/pdfjs/');
+// in this section is ever called on the mobile/tablet homepage. Anchored to the same SITE_ROOT
+// every PROJECTS asset path above resolves against (see that block's own comment) -- one
+// "where is the site root" computation, not a second separate guess.
+var vendorBase = new URL('assets/vendor/pdfjs/', SITE_ROOT).href;
 
 var pdfjsModulePromise = null;
 function loadPdfjs() {
@@ -383,15 +485,20 @@ function loadVideoFrameEl(src) {
   });
 }
 // mobile/tablet homepage: never fetches a PDF or buffers a video just to sample a background
-// color -- project.cover/project.coverFallback (both plain static images) are the only sources
-// this tier will ever read; anything without one of those resolves null and updateWash() falls
-// back to WASH_PALETTE's own cyclic swatch, exactly as it already does for a genuine extraction
-// failure. Desktop and the project detail page are unaffected -- both still extract from the real
-// PDF page 1 / video frame for full-fidelity color.
+// color -- project.coverMobile/project.cover/project.coverFallback (all plain static images) are
+// the only sources this tier will ever read; anything without one of those resolves null and
+// updateWash() falls back to WASH_PALETTE's own cyclic swatch, exactly as it already does for a
+// genuine extraction failure. Desktop and the project detail page are unaffected -- both still
+// extract from the real PDF page 1 / video frame for full-fidelity color.
 function getProjectMainImageEl(project) {
   if (project.cover) return loadImageEl(project.cover);
   if (PROJECT_MEDIA_MOBILE_TIER) {
-    return project.coverFallback ? loadImageEl(project.coverFallback) : Promise.resolve(null);
+    // coverMobile first, same reasoning as buildProjectCard()'s own staticCoverSrc in
+    // js/script.js: a few projects' coverFallback plate doubles as a full-resolution
+    // project-detail-page gallery image and must not be the thing a homepage color-sample
+    // decodes either.
+    var mobileImg = project.coverMobile || project.coverFallback;
+    return mobileImg ? loadImageEl(mobileImg) : Promise.resolve(null);
   }
   if (project.pdf) return getPdfPageOneUrl(project).then(loadImageEl);
   if (project.videoPreview || project.video) return loadVideoFrameEl(project.videoPreview || project.video);

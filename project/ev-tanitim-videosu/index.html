@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project — Kaan Acar</title>
+<meta name="description" content="Case study from the portfolio of Kaan Acar, Visual Communication Designer.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400&family=Geist:wght@500;600;700;800&family=Inter:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="../../css/style.css">
+</head>
+<body>
+
+<!-- Project detail page: the media-heavy half of the mobile/tablet project architecture (see
+     js/project-data.js's own header comment). Intentionally simple -- back link, title, and this
+     one project's own media -- reusing the homepage's existing #project-page/gallery/video
+     styling as a plain page instead of an overlay dialog, so it stays visually consistent with
+     zero new CSS. document.title and the actual content are filled in by js/project-page.js,
+     which resolves the project from this URL's own /project/<id>/ slug via PROJECTS
+     (js/project-data.js) -- no per-project HTML/data lives in this file, just a static shell
+     identical across every project/<id>/index.html. -->
+<div id="project-page" class="project-page open" aria-hidden="false">
+  <a class="project-page__close" id="project-page-back" href="../../index.html" aria-label="Back to projects">←</a>
+  <div class="project-page__inner" id="project-page-inner"></div>
+</div>
+
+<!-- tells js/project-data.js this page sits two directories below the site root, so every
+     project asset path (images/video/PDF) it resolves is anchored correctly here instead of
+     against this page's own URL -- see that file's own SITE_ROOT comment for why this was a
+     real bug (video/PDF requests 404'd) and why it's an explicit declaration rather than an
+     inferred one. index.html declares './' the same way. -->
+<script>window.SITE_ROOT_HREF = '../../';</script>
+<script src="../../js/project-data.js"></script>
+<script src="../../js/project-render.js"></script>
+<script src="../../js/project-page.js"></script>
+</body>
+</html>

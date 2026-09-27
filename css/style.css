@@ -366,6 +366,24 @@ header.frame-away{ top:0; }
 @media (prefers-reduced-motion: reduce){
   .hero-scroll-track{ height:100svh; }
 }
+/* phone/tablet: the Hero is a fully static single frame now (see js/script.js's own
+   HERO_MOBILE_TIER branch -- the scroll-scrub loop is never started on this tier at all), so the
+   extra ~1700px runway above has nothing left to scrub through -- collapsing it to one viewport,
+   same as reduced motion, means #hero's own position:sticky has no extra room to hold it in
+   place: the section scrolls away with the rest of the page like any other, and every section
+   below it sits in normal, un-padded document flow instead of behind a dead scroll gap.
+   min-height, not height: #hero itself is also only min-height:100svh (a flex column that can
+   grow taller if its own content ever needs more room on a narrow/short viewport) -- a hard
+   height cap here would leave #hero's sticky box taller than this track, which caused the exact
+   bug .skills-scroll-track's own mobile comment below describes (content overflowing into the
+   next section and getting painted over by its opaque background). Same (pointer:coarse)+
+   width/height convention as this file's other mobile-tier queries so a landscape tablet is
+   covered the same way. Desktop is untouched -- this query can't match a fine-pointer device
+   regardless of window size, and the reduced-motion rule just above (a separate, pre-existing
+   condition, not touched here) keeps its own plain `height`. */
+@media (pointer:coarse) and (max-width:1024px), (pointer:coarse) and (max-height:1024px){
+  .hero-scroll-track{ min-height:100svh; height:auto; }
+}
 
 /* ---------- HERO ---------- */
 #hero{
@@ -393,6 +411,19 @@ header.frame-away{ top:0; }
 .hero-bg-canvas{
   width:100%; height:100%;
   display:block;
+  filter:blur(0.3px);
+}
+/* phone/tablet only: a plain <img> js/script.js inserts in place of the canvas -- the exact same
+   frame-001.webp source the canvas would otherwise decode as "frame 0", just rendered the ordinary
+   way instead of through the scroll-scrub canvas/createImageBitmap pipeline built for cycling
+   through 126 frames, which this single always-static image has no need for. object-fit:cover
+   replaces that pipeline's own manual "cover" crop math (drawFrame() in js/script.js); same
+   blur(0.3px) as .hero-bg-canvas so the two are visually identical. Desktop never creates this
+   element at all -- see js/script.js's own HERO_MOBILE_TIER branch. */
+.hero-bg-mobile-frame{
+  width:100%; height:100%;
+  display:block;
+  object-fit:cover;
   filter:blur(0.3px);
 }
 .hero-video-overlay{
@@ -564,6 +595,13 @@ section{ padding:130px 0 60px; }
 
 .reveal{ opacity:0; transform:translateY(24px); transition:opacity 0.8s ease, transform 0.8s ease; }
 .reveal.in{ opacity:1; transform:translateY(0); }
+/* phone/tablet: same "show immediately, no scroll-triggered fade" treatment as reduced motion
+   (see this file's own @media (prefers-reduced-motion: reduce) block further down) -- js/script.js
+   never even creates the IntersectionObserver behind .in on this tier, so nothing would ever add
+   that class; this is what makes the section visible regardless. Desktop unaffected. */
+@media (pointer:coarse) and (max-width:1024px), (pointer:coarse) and (max-height:1024px){
+  .reveal{ opacity:1; transform:none; }
+}
 
 /* ---------- WORK CAROUSEL (homepage level -- project covers only) ---------- */
 /* #work-carousel and everything inside it are generated entirely from PROJECTS in
@@ -623,9 +661,10 @@ section{ padding:130px 0 60px; }
 .carousel-viewport.dragging{ cursor:grabbing; transform:rotateX(var(--tiltX, 0deg)) rotateY(var(--tiltY, 0deg)) scale(0.985); }
 
 /* project number/title/category/year, bottom-left of the stage -- updates whenever the active
-   card changes, tracking rotation live (drag/wheel/keys/autoplay alike), not just on click.
-   The gradient background is load-bearing, not decorative: cards vary from near-black photos
-   to pale placeholder gradients, so the text needs guaranteed contrast against either. */
+   card changes, tracking rotation live (drag/wheel/keys alike), not just on click. Reused as-is
+   by the mobile/tablet single-card view (js/script.js's buildMobileWork()). The gradient
+   background is load-bearing, not decorative: cards vary from near-black photos to pale
+   placeholder gradients, so the text needs guaranteed contrast against either. */
 .carousel-info{
   position:absolute; left:0; right:0; bottom:0; z-index:2;
   max-width:min(46vw, 460px);
@@ -636,6 +675,32 @@ section{ padding:130px 0 60px; }
 .carousel-info__num{ font-family:var(--mono); font-size:0.78rem; color:var(--accent); letter-spacing:0.04em; }
 .carousel-info__title{ font-family:var(--poster); font-weight:400; letter-spacing:0.01em; font-size:clamp(1.7rem, 3.8vw, 2.9rem); color:var(--paper); margin:8px 0 6px; }
 .carousel-info__meta{ font-family:var(--mono); font-size:0.72rem; color:var(--muted); letter-spacing:0.03em; text-transform:uppercase; display:flex; gap:14px; }
+
+/* manual prev/next -- mobile/tablet only (created by js/script.js's own buildMobileWork(), an
+   entirely separate implementation from the desktop ring below); desktop keeps its existing idle
+   autoplay and never renders these. Same circular-chrome treatment as .project-page__close (44px,
+   1px rgba border, translucent fill, mono glyph) rather than a new control style -- this site's
+   own "mechanical/chrome" shape register (DESIGN.md Shapes). Vertically centered on the stage so
+   they never overlap .carousel-info's bottom-left panel. */
+.carousel-nav{
+  position:absolute; top:50%; z-index:3;
+  transform:translateY(-50%);
+  width:44px; height:44px; border-radius:50%;
+  border:1px solid rgba(245,245,241,0.3);
+  background:rgba(16,16,20,0.5);
+  color:var(--paper);
+  font-family:var(--mono); font-size:1.3rem; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  transition:border-color .3s ease, transform .3s ease, background .3s ease;
+}
+.carousel-nav:hover{ border-color:var(--paper); background:rgba(16,16,20,0.7); }
+.carousel-nav:active{ transform:translateY(-50%) scale(0.92); }
+.carousel-nav--prev{ left:8px; }
+.carousel-nav--next{ right:8px; }
+@media (max-width:760px){
+  .carousel-nav{ width:38px; height:38px; font-size:1.1rem; }
+}
 
 .carousel-ring{
   position:absolute; inset:0;
@@ -671,11 +736,30 @@ section{ padding:130px 0 60px; }
   object-fit:contain;
 }
 
+/* mobile/tablet Work carousel only (buildMobileWork(), js/script.js) -- the desktop ring's own
+   buildProjectCard() has no equivalent element and never creates this class. Sits behind
+   .carousel-card__cover (z-index:1) as a blurred, scaled-up, cover-fit echo of that same photo,
+   so a portrait main photo (the common case: a book cover/poster, ~0.7:1, inside this tier's
+   fixed landscape card frame -- see cardSize()) fills the frame edge-to-edge instead of leaving
+   bare tone-gradient bars down both sides. The sharp photo on top (object-fit:contain) always
+   stays the complete, uncropped, exact designated main photo; this is purely a backdrop fill. */
+.carousel-card__cover-bg{
+  position:absolute; inset:0; z-index:0;
+  background-size:cover; background-position:center;
+  transform:scale(1.15); /* hides the blur's own soft edge from peeking past the frame */
+  filter:blur(28px) brightness(0.55) saturate(1.1);
+  opacity:0; transition:opacity .25s ease;
+}
+
 .carousel-card__preview{
   position:absolute; inset:0; z-index:1;
   width:100%; height:100%;
   object-fit:cover;
 }
+/* cover-first video cards (created on first hover, js/script.js createDeferredPreview): the
+   static cover stays visible until real frames are playing, then the clip fades over it */
+.carousel-card__preview--deferred{ opacity:0; transition:opacity 0.6s cubic-bezier(.76,0,.24,1); }
+.carousel-card__preview--deferred.is-playing{ opacity:1; }
 
 .carousel-card__play{
   position:absolute; inset:0; z-index:2;
@@ -746,6 +830,12 @@ section{ padding:130px 0 60px; }
   cursor:pointer;
   display:flex; align-items:center; justify-content:center;
   transition:border-color .3s ease, transform .3s ease;
+  /* a touch target with no touch-action declared leaves some mobile browsers waiting out their
+     own double-tap-to-zoom window before dispatching `click` -- a genuine, well-documented tap-
+     response delay, independent of anything this button's own handler does. No-op for a
+     mouse/fine-pointer click, so this changes nothing about the desktop dialog's own close button
+     that also shares this class. */
+  touch-action:manipulation;
 }
 .project-page__close:hover{ border-color:var(--paper); transform:scale(1.08); }
 
@@ -885,6 +975,23 @@ section{ padding:130px 0 60px; }
 @media (prefers-reduced-motion: reduce){
   .identity-new-track{ height:100svh; }
 }
+/* phone/tablet gets the same idea as reduced motion above, and for the same reason: js/
+   identity.js's own mobile-tier check (mirroring js/script.js's isCoarsePointer convention) skips
+   mounting the module on this tier entirely, so there is no scroll-progress handler left to give
+   this extra runway to -- #identity's own position:sticky then has no room to hold it in place,
+   and the section scrolls away with the rest of the page like any other.
+   min-height + height:auto, not a hard height:100svh: #identity is itself only min-height:100svh
+   (it can grow taller if its own content ever needs more room on a narrow/short viewport), and
+   capping the track to exactly one viewport left a sticky child that needed more room overflowing
+   past its own container -- the next section's opaque #000 background then painted over that
+   overflowing tail (this is the exact bug reported and fixed for #skills; applied here too, same
+   structural pattern, before it could surface the same way). Separate rule from reduced motion
+   above so that pre-existing, unrelated desktop-with-reduced-motion behavior is untouched.
+   Desktop is otherwise untouched -- (pointer:coarse) can't match a fine-pointer device regardless
+   of window size. */
+@media (pointer:coarse) and (max-width:1024px), (pointer:coarse) and (max-height:1024px){
+  .identity-new-track{ min-height:100svh; height:auto; }
+}
 
 #identity{
   min-height:100svh;
@@ -985,6 +1092,17 @@ section{ padding:130px 0 60px; }
 }
 @media (prefers-reduced-motion: reduce){
   .about-me-scroll-track{ height:100svh; }
+}
+/* phone/tablet: same idea as reduced motion above -- js/scenes.js's own mobile-tier early return
+   (top of initScenes(), same pointer/width check as this query) skips mounting its reveal engine
+   on this tier entirely, so there is no scroll-progress handler left to give this runway to.
+   min-height + height:auto, not a hard height:100svh -- see .skills-scroll-track's own mobile
+   comment further down for why a hard cap here overflowed a sticky child into the next section's
+   opaque background; same fix applied uniformly to every scene track. Separate rule from reduced
+   motion above so that pre-existing, unrelated desktop-with-reduced-motion behavior is untouched.
+   Desktop otherwise unaffected. */
+@media (pointer:coarse) and (max-width:1024px), (pointer:coarse) and (max-height:1024px){
+  .about-me-scroll-track{ min-height:100svh; height:auto; }
 }
 
 /* align-items:flex-start (not :center) plus a viewport-relative top padding lands the column in
@@ -1127,7 +1245,7 @@ section{ padding:130px 0 60px; }
   will-change:transform, opacity, filter;
 }
 
-@media (prefers-reduced-motion: reduce){
+@media (prefers-reduced-motion: reduce), (pointer:coarse) and (max-width:1024px), (pointer:coarse) and (max-height:1024px){
   .identity-heading,
   .about-me-label,
   .about-me-line{ opacity:1; transform:none; filter:none; }
@@ -1144,6 +1262,24 @@ section{ padding:130px 0 60px; }
 }
 @media (prefers-reduced-motion: reduce){
   .skills-scroll-track{ height:100svh; }
+}
+/* phone/tablet: same idea as reduced motion above -- see .about-me-scroll-track's own comment,
+   identical reasoning (js/scenes.js's shared engine, both scenes alike).
+   min-height + height:auto here, NOT a hard height:100svh -- this is the actual fix for a real
+   reported bug: #skills's 6-card grid (.skills-grid, auto-fit/minmax(150px,1fr)) wraps to more
+   rows on a narrow phone width than it ever does on desktop, and can need noticeably more than
+   one viewport's worth of height to show every card. #skills itself is only min-height:100svh (a
+   flex column that grows with its content), so with a hard height:100svh cap on this track, the
+   sticky #skills box grew taller than its own containing block and overflowed past it -- and
+   since #availability (the next section, opaque background:#000) sits immediately after in
+   normal flow, its background painted directly over that overflowing tail, hiding the last one or
+   two skill cards behind solid black. min-height leaves the track free to grow to whatever
+   #skills actually needs (still exactly one viewport when that's all the content requires, same
+   as before) instead of clipping it to a fixed number. Separate rule from reduced motion above so
+   pre-existing, unrelated desktop-with-reduced-motion behavior is untouched. Desktop otherwise
+   unaffected -- (pointer:coarse) can't match a fine-pointer device regardless of window size. */
+@media (pointer:coarse) and (max-width:1024px), (pointer:coarse) and (max-height:1024px){
+  .skills-scroll-track{ min-height:100svh; height:auto; }
 }
 
 #skills{
@@ -1246,7 +1382,7 @@ section{ padding:130px 0 60px; }
 }
 .skill-ring__value small{ font-size:0.62em; color:var(--muted); margin-left:1px; }
 
-@media (prefers-reduced-motion: reduce){
+@media (prefers-reduced-motion: reduce), (pointer:coarse) and (max-width:1024px), (pointer:coarse) and (max-height:1024px){
   .skill-card{ opacity:1; transform:none; filter:none; }
   .split-word{ opacity:1; transform:none; filter:none; }
 }
@@ -1260,6 +1396,16 @@ section{ padding:130px 0 60px; }
 }
 @media (prefers-reduced-motion: reduce){
   .availability-scroll-track{ height:100svh; }
+}
+/* phone/tablet: same idea as reduced motion above -- see .about-me-scroll-track's own comment,
+   identical reasoning (js/scenes.js's shared engine, all three scenes alike).
+   min-height + height:auto, not a hard height:100svh -- see .skills-scroll-track's own mobile
+   comment for why a hard cap here overflowed a sticky child into the next section's opaque
+   background; same fix applied uniformly to every scene track. Separate rule from reduced motion
+   above so pre-existing, unrelated desktop-with-reduced-motion behavior is untouched. Desktop
+   otherwise unaffected. */
+@media (pointer:coarse) and (max-width:1024px), (pointer:coarse) and (max-height:1024px){
+  .availability-scroll-track{ min-height:100svh; height:auto; }
 }
 
 #availability{
@@ -1297,7 +1443,7 @@ section{ padding:130px 0 60px; }
   border-bottom:1px solid var(--line);
 }
 
-@media (prefers-reduced-motion: reduce){
+@media (prefers-reduced-motion: reduce), (pointer:coarse) and (max-width:1024px), (pointer:coarse) and (max-height:1024px){
   .availability-item{ opacity:1; transform:none; filter:none; }
 }
 

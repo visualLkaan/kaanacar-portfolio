@@ -2,6 +2,33 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- Mobile/tablet only: browsers restore the previous scroll position on reload/back-forward
+     navigation by default (history.scrollRestoration === 'auto') -- on this homepage that meant
+     reloading while previously scrolled into Projects/Work landed back there instead of at the
+     Hero. Setting this to 'manual' as early as possible in the document head, before any
+     restoration would apply, opts the homepage out of that automatic restore, but ONLY for an
+     actual reload (Navigation Timing's own reported type) -- narrowed from every load to just
+     that case because the original blanket version also silently defeated scroll restoration on
+     a genuine back/forward navigation, eg. returning here from project/<id>/index.html, which is
+     exactly the "back button lands at the top/loader instead of back at Projects" bug reported
+     against this site's mobile back navigation. A back/forward return keeps the default 'auto'
+     so the browser puts the visitor back exactly where they left (see also the loader's own
+     back_forward check in js/script.js). Desktop (fine pointer) is untouched -- same
+     coarse-pointer + smaller-of-width/height convention used throughout this site's own js/*.js
+     mobile-tier checks. Scoped to this page only (not project/<id>/index.html), which is
+     short/static and was never the page reported to have this problem. -->
+<script>
+(function () {
+  if (!('scrollRestoration' in history)) return;
+  var coarse = !window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  var w = coarse ? Math.min(window.innerWidth, window.innerHeight) : window.innerWidth;
+  if (!coarse || w > 1024) return;
+  var navEntries = (window.performance && performance.getEntriesByType) ? performance.getEntriesByType('navigation') : [];
+  var isReload = navEntries.length ? navEntries[0].type === 'reload'
+    : !!(window.performance && performance.navigation && performance.navigation.type === 1);
+  if (isReload) history.scrollRestoration = 'manual';
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kaan Acar — Visual Communication Designer</title>
 <meta name="description" content="Portfolio of Kaan Acar, Visual Communication Designer.">
@@ -415,7 +442,11 @@
 <!-- PROJECTS data + the pdf.js/video/palette loaders (mobile/tablet-gated), then the shared
      project-detail renderer -- both loaded before js/script.js since it consumes them; also
      shared, unchanged, by project/<id>/index.html via js/project-page.js. See js/project-data.js's
-     own header comment. -->
+     own header comment. SITE_ROOT_HREF tells that file how deep this page sits relative to the
+     site root ('./' here; every project/<id>/index.html declares '../../' -- see that template
+     and js/project-data.js's own SITE_ROOT comment) so every project asset path it resolves
+     works from both places, and under a subpath deployment, without guessing. -->
+<script>window.SITE_ROOT_HREF = './';</script>
 <script src="js/project-data.js"></script>
 <script src="js/project-render.js"></script>
 <script src="js/script.js"></script>

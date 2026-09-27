@@ -23,10 +23,16 @@
      (js/project-data.js) -- no per-project HTML/data lives in this file, just a static shell
      identical across every project/<id>/index.html. -->
 <div id="project-page" class="project-page open" aria-hidden="false">
-  <a class="project-page__close" id="project-page-back" href="../../index.html#work" aria-label="Back to projects">←</a>
+  <a class="project-page__close" id="project-page-back" href="../../index.html" aria-label="Back to projects">←</a>
   <div class="project-page__inner" id="project-page-inner"></div>
 </div>
 
+<!-- tells js/project-data.js this page sits two directories below the site root, so every
+     project asset path (images/video/PDF) it resolves is anchored correctly here instead of
+     against this page's own URL -- see that file's own SITE_ROOT comment for why this was a
+     real bug (video/PDF requests 404'd) and why it's an explicit declaration rather than an
+     inferred one. index.html declares './' the same way. -->
+<script>window.SITE_ROOT_HREF = '../../';</script>
 <script src="../../js/project-data.js"></script>
 <script src="../../js/project-render.js"></script>
 <script src="../../js/project-page.js"></script>
